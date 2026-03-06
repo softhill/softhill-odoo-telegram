@@ -4,7 +4,10 @@ High-level convenience tools that wrap common Odoo operations.
 Each method corresponds to a telegram.tool record defined in
 telegram_tools_core_data.xml.
 """
+import io
 import logging
+import subprocess
+import tempfile
 from datetime import date, datetime, timedelta
 
 from odoo import api, models
@@ -58,7 +61,7 @@ class TelegramAIChatCore(models.AbstractModel):
     # ==========================================
 
     @api.model
-    def _tool_sales_summary(self, args, user, permission):
+    def _tool_sales_summary(self, args, user, permission, **kw):
         SO = self.env["sale.order"].sudo()
         period = args.get("period", "month")
         state = args.get("state", "all")
@@ -97,7 +100,7 @@ class TelegramAIChatCore(models.AbstractModel):
         }
 
     @api.model
-    def _tool_create_quotation(self, args, user, permission):
+    def _tool_create_quotation(self, args, user, permission, **kw):
         partner = _resolve_partner(self.env, args["partner"])
         if not partner:
             return {"error": f"Cliente '{args['partner']}' nao encontrado"}
@@ -135,7 +138,7 @@ class TelegramAIChatCore(models.AbstractModel):
     # ==========================================
 
     @api.model
-    def _tool_invoicing_summary(self, args, user, permission):
+    def _tool_invoicing_summary(self, args, user, permission, **kw):
         AM = self.env["account.move"].sudo()
         period = args.get("period", "month")
         move_type = args.get("type", "out_invoice")
@@ -181,7 +184,7 @@ class TelegramAIChatCore(models.AbstractModel):
     # ==========================================
 
     @api.model
-    def _tool_crm_pipeline(self, args, user, permission):
+    def _tool_crm_pipeline(self, args, user, permission, **kw):
         Lead = self.env["crm.lead"].sudo()
         domain = [("active", "=", True), ("type", "=", "opportunity")]
 
@@ -229,7 +232,7 @@ class TelegramAIChatCore(models.AbstractModel):
         }
 
     @api.model
-    def _tool_create_lead(self, args, user, permission):
+    def _tool_create_lead(self, args, user, permission, **kw):
         vals = {
             "name": args["name"],
             "type": args.get("type", "opportunity"),
@@ -258,7 +261,7 @@ class TelegramAIChatCore(models.AbstractModel):
     # ==========================================
 
     @api.model
-    def _tool_project_summary(self, args, user, permission):
+    def _tool_project_summary(self, args, user, permission, **kw):
         Task = self.env["project.task"].sudo()
         period = args.get("period", "month")
 
@@ -316,7 +319,7 @@ class TelegramAIChatCore(models.AbstractModel):
         }
 
     @api.model
-    def _tool_log_timesheet(self, args, user, permission):
+    def _tool_log_timesheet(self, args, user, permission, **kw):
         AAL = self.env["account.analytic.line"].sudo()
         if "project_id" not in AAL._fields:
             return {"error": "Modulo hr_timesheet nao instalado. Instale para registrar horas."}
@@ -351,7 +354,7 @@ class TelegramAIChatCore(models.AbstractModel):
         }
 
     @api.model
-    def _tool_create_task(self, args, user, permission):
+    def _tool_create_task(self, args, user, permission, **kw):
         Project = self.env["project.project"].sudo()
         project_ref = args["project"]
 
@@ -394,7 +397,7 @@ class TelegramAIChatCore(models.AbstractModel):
     # ==========================================
 
     @api.model
-    def _tool_find_contact(self, args, user, permission):
+    def _tool_find_contact(self, args, user, permission, **kw):
         Partner = self.env["res.partner"].sudo()
         query = args["query"]
 
@@ -438,7 +441,7 @@ class TelegramAIChatCore(models.AbstractModel):
         return {"count": len(results), "contacts": results}
 
     @api.model
-    def _tool_create_contact(self, args, user, permission):
+    def _tool_create_contact(self, args, user, permission, **kw):
         vals = {
             "name": args["name"],
             "is_company": args.get("is_company", False),
@@ -474,7 +477,7 @@ class TelegramAIChatCore(models.AbstractModel):
     # ==========================================
 
     @api.model
-    def _tool_purchase_summary(self, args, user, permission):
+    def _tool_purchase_summary(self, args, user, permission, **kw):
         PO = self.env["purchase.order"].sudo()
         period = args.get("period", "month")
         state = args.get("state", "all")
@@ -513,7 +516,7 @@ class TelegramAIChatCore(models.AbstractModel):
     # ==========================================
 
     @api.model
-    def _tool_stock_levels(self, args, user, permission):
+    def _tool_stock_levels(self, args, user, permission, **kw):
         Quant = self.env["stock.quant"].sudo()
         domain = [("location_id.usage", "=", "internal")]
 
@@ -555,7 +558,7 @@ class TelegramAIChatCore(models.AbstractModel):
         return {"count": len(result), "products": result[:limit]}
 
     @api.model
-    def _tool_stock_moves(self, args, user, permission):
+    def _tool_stock_moves(self, args, user, permission, **kw):
         Picking = self.env["stock.picking"].sudo()
         period = args.get("period", "week")
 
@@ -598,7 +601,7 @@ class TelegramAIChatCore(models.AbstractModel):
     # ==========================================
 
     @api.model
-    def _tool_employees(self, args, user, permission):
+    def _tool_employees(self, args, user, permission, **kw):
         Emp = self.env["hr.employee"].sudo()
         domain = []
 
@@ -631,7 +634,7 @@ class TelegramAIChatCore(models.AbstractModel):
     # ==========================================
 
     @api.model
-    def _tool_calendar(self, args, user, permission):
+    def _tool_calendar(self, args, user, permission, **kw):
         Event = self.env["calendar.event"].sudo()
         period = args.get("period", "week")
 
@@ -682,7 +685,7 @@ class TelegramAIChatCore(models.AbstractModel):
         }
 
     @api.model
-    def _tool_create_event(self, args, user, permission):
+    def _tool_create_event(self, args, user, permission, **kw):
         vals = {
             "name": args["name"],
             "start": args["start"],
@@ -714,7 +717,7 @@ class TelegramAIChatCore(models.AbstractModel):
     # ==========================================
 
     @api.model
-    def _tool_expenses(self, args, user, permission):
+    def _tool_expenses(self, args, user, permission, **kw):
         Expense = self.env["hr.expense"].sudo()
         period = args.get("period", "month")
         state = args.get("state", "all")
@@ -1281,3 +1284,112 @@ class TelegramAIChatCore(models.AbstractModel):
                 for u in users
             ],
         }
+
+    # ------------------------------------------------------------------
+    # PDF REPORT TOOLS
+    # ------------------------------------------------------------------
+
+    def _tool_generate_report(self, args, user, permission, chat_id=None, **kw):
+        """Generate an HTML report, convert to PDF via wkhtmltopdf, and send to Telegram."""
+        html_content = args.get("html", "")
+        title = args.get("title", "Report")
+        filename = args.get("filename", "report.pdf")
+
+        if not html_content:
+            return {"error": "html content is required"}
+
+        if not filename.endswith(".pdf"):
+            filename += ".pdf"
+
+        # Wrap in a full HTML document with basic styling
+        full_html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{title}</title>
+<style>
+    body {{ font-family: Arial, Helvetica, sans-serif; margin: 30px; color: #333; font-size: 13px; }}
+    h1 {{ color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 8px; font-size: 22px; }}
+    h2 {{ color: #2c3e50; margin-top: 20px; font-size: 16px; }}
+    h3 {{ color: #555; font-size: 14px; }}
+    table {{ border-collapse: collapse; width: 100%; margin: 12px 0; }}
+    th {{ background-color: #3498db; color: white; padding: 8px 10px; text-align: left; font-size: 12px; }}
+    td {{ padding: 6px 10px; border-bottom: 1px solid #ddd; font-size: 12px; }}
+    tr:nth-child(even) {{ background-color: #f8f9fa; }}
+    .header {{ text-align: center; margin-bottom: 20px; }}
+    .footer {{ margin-top: 30px; text-align: center; font-size: 10px; color: #999; border-top: 1px solid #ddd; padding-top: 10px; }}
+    .metric {{ display: inline-block; background: #f0f4f8; border-radius: 8px; padding: 12px 20px; margin: 5px; text-align: center; }}
+    .metric .value {{ font-size: 24px; font-weight: bold; color: #2c3e50; }}
+    .metric .label {{ font-size: 11px; color: #777; }}
+    .highlight {{ background-color: #fff3cd; padding: 2px 4px; }}
+    .success {{ color: #28a745; }}
+    .danger {{ color: #dc3545; }}
+</style>
+</head>
+<body>
+{html_content}
+<div class="footer">Generated by Softhill AI Bot &mdash; {datetime.now().strftime('%d/%m/%Y %H:%M')}</div>
+</body>
+</html>"""
+
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as html_f:
+                html_f.write(full_html.encode("utf-8"))
+                html_path = html_f.name
+
+            pdf_path = html_path.replace(".html", ".pdf")
+
+            result = subprocess.run(
+                [
+                    "wkhtmltopdf",
+                    "--quiet",
+                    "--encoding", "utf-8",
+                    "--page-size", "A4",
+                    "--margin-top", "10mm",
+                    "--margin-bottom", "10mm",
+                    "--margin-left", "10mm",
+                    "--margin-right", "10mm",
+                    html_path,
+                    pdf_path,
+                ],
+                capture_output=True,
+                timeout=30,
+            )
+
+            if result.returncode != 0:
+                err = result.stderr.decode("utf-8", errors="replace")[:500]
+                _logger.error("wkhtmltopdf error: %s", err)
+                return {"error": f"PDF generation failed: {err}"}
+
+            with open(pdf_path, "rb") as f:
+                pdf_bytes = f.read()
+
+            # Send via Telegram
+            if chat_id:
+                bot = self.env["telegram.bot"].sudo()
+                bot.send_document(
+                    chat_id,
+                    io.BytesIO(pdf_bytes),
+                    filename,
+                    caption=f"*{title}*",
+                )
+
+            # Cleanup temp files
+            import os
+            os.unlink(html_path)
+            os.unlink(pdf_path)
+
+            return {
+                "success": True,
+                "filename": filename,
+                "size_kb": round(len(pdf_bytes) / 1024, 1),
+                "message": f"PDF '{filename}' sent to chat.",
+            }
+
+        except subprocess.TimeoutExpired:
+            return {"error": "PDF generation timed out (30s)"}
+        except FileNotFoundError:
+            return {"error": "wkhtmltopdf not installed on server"}
+        except Exception as e:
+            _logger.exception("PDF generation error")
+            return {"error": str(e)}

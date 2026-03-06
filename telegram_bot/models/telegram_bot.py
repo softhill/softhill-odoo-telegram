@@ -46,6 +46,27 @@ class TelegramBot(models.AbstractModel):
         )
 
     @api.model
+    def send_document(self, chat_id, file_bytes, filename, caption="", parse_mode="Markdown"):
+        """Send a document (file) to a Telegram chat."""
+        token = self._get_token()
+        if not token:
+            _logger.error("Telegram bot token not configured")
+            return {}
+        url = TELEGRAM_API.format(token=token, method="sendDocument")
+        data = {"chat_id": chat_id}
+        if caption:
+            data["caption"] = caption
+            data["parse_mode"] = parse_mode
+        files = {"document": (filename, file_bytes)}
+        try:
+            resp = requests.post(url, data=data, files=files, timeout=60)
+            resp.raise_for_status()
+            return resp.json().get("result", {})
+        except Exception:
+            _logger.exception("Telegram sendDocument failed")
+            return {}
+
+    @api.model
     def send_typing(self, chat_id):
         return self._api_call("sendChatAction", chat_id=chat_id, action="typing")
 

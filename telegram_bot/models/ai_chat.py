@@ -15,6 +15,11 @@ You have direct access to the system and can query and modify sales, purchases,
 contacts, projects, timesheets, inventory and any other Odoo module data.
 You can also query GitHub repositories.
 
+You can generate PDF reports and send them as documents. When the user asks for
+a report, document or formatted summary, use the generate_report tool with well-structured
+HTML (tables, metrics, sections). First collect the data using other tools, then
+build the HTML and generate the PDF.
+
 Be concise and use real system data. When the user asks for data, use the available tools.
 When asked to create or modify something, use the write tools.
 
@@ -165,7 +170,7 @@ class TelegramAIChat(models.AbstractModel):
                 if self._check_needs_confirmation(name, args):
                     return self._create_pending_action(name, args, user, chat_id)
 
-            result = method(args, user, permission)
+            result = method(args, user, permission, chat_id=chat_id)
             output = json.dumps(result, ensure_ascii=False, default=str)
             if len(output) > 6000:
                 output = output[:6000] + "\n... (truncated)"
@@ -218,7 +223,7 @@ class TelegramAIChat(models.AbstractModel):
     # ==========================================
 
     @api.model
-    def _tool_search_odoo(self, args, user, permission):
+    def _tool_search_odoo(self, args, user, permission, **kw):
         model_name = args["model"]
         domain = args.get("domain", [])
         field_list = args.get("fields")
@@ -251,7 +256,7 @@ class TelegramAIChat(models.AbstractModel):
         return {"model": model_name, "count": len(records), "records": records}
 
     @api.model
-    def _tool_count_odoo(self, args, user, permission):
+    def _tool_count_odoo(self, args, user, permission, **kw):
         model_name = args["model"]
         domain = args.get("domain", [])
         if permission == "freela" and model_name in FREELA_BLOCKED_MODELS:
@@ -260,7 +265,7 @@ class TelegramAIChat(models.AbstractModel):
         return {"model": model_name, "count": count}
 
     @api.model
-    def _tool_read_record(self, args, user, permission):
+    def _tool_read_record(self, args, user, permission, **kw):
         model_name = args["model"]
         record_id = args["record_id"]
         field_list = args.get("fields")
@@ -283,7 +288,7 @@ class TelegramAIChat(models.AbstractModel):
         return {"record": records[0]}
 
     @api.model
-    def _tool_get_fields(self, args, user, permission):
+    def _tool_get_fields(self, args, user, permission, **kw):
         model_name = args["model"]
         Model = self.env[model_name]
         fields_info = Model.fields_get(
@@ -308,7 +313,7 @@ class TelegramAIChat(models.AbstractModel):
     # ==========================================
 
     @api.model
-    def _tool_create_record(self, args, user, permission):
+    def _tool_create_record(self, args, user, permission, **kw):
         model_name = args["model"]
         values = args.get("values", {})
 
@@ -319,7 +324,7 @@ class TelegramAIChat(models.AbstractModel):
         return {"id": record.id, "display_name": record.display_name}
 
     @api.model
-    def _tool_update_record(self, args, user, permission):
+    def _tool_update_record(self, args, user, permission, **kw):
         model_name = args["model"]
         record_id = args["record_id"]
         values = args.get("values", {})
@@ -335,7 +340,7 @@ class TelegramAIChat(models.AbstractModel):
         return {"id": record.id, "display_name": record.display_name, "updated": True}
 
     @api.model
-    def _tool_execute_action(self, args, user, permission):
+    def _tool_execute_action(self, args, user, permission, **kw):
         model_name = args["model"]
         record_id = args["record_id"]
         method = args["method"]
@@ -354,7 +359,7 @@ class TelegramAIChat(models.AbstractModel):
         return {"executed": method, "id": record.id, "display_name": record.display_name}
 
     @api.model
-    def _tool_delete_record(self, args, user, permission):
+    def _tool_delete_record(self, args, user, permission, **kw):
         model_name = args["model"]
         record_id = args["record_id"]
 
@@ -370,7 +375,7 @@ class TelegramAIChat(models.AbstractModel):
         return {"deleted": True, "display_name": name}
 
     @api.model
-    def _tool_post_message(self, args, user, permission):
+    def _tool_post_message(self, args, user, permission, **kw):
         model_name = args["model"]
         record_id = args["record_id"]
         body = args["body"]
@@ -428,7 +433,7 @@ class TelegramAIChat(models.AbstractModel):
         return repo
 
     @api.model
-    def _tool_github_list_repos(self, args, user, permission):
+    def _tool_github_list_repos(self, args, user, permission, **kw):
         org = args.get("org", self._get_github_org())
         repo_type = args.get("type", "all")
         data = self._github_api(
@@ -453,7 +458,7 @@ class TelegramAIChat(models.AbstractModel):
         }
 
     @api.model
-    def _tool_github_read_file(self, args, user, permission):
+    def _tool_github_read_file(self, args, user, permission, **kw):
         repo = self._normalize_repo(args["repo"])
         path = args["path"]
         ref = args.get("ref", "main")
@@ -477,7 +482,7 @@ class TelegramAIChat(models.AbstractModel):
         return {"path": path, "size": data.get("size", 0), "content": content}
 
     @api.model
-    def _tool_github_search_code(self, args, user, permission):
+    def _tool_github_search_code(self, args, user, permission, **kw):
         query = args["query"]
         org = self._get_github_org()
         q = f"{query} org:{org}"
@@ -499,7 +504,7 @@ class TelegramAIChat(models.AbstractModel):
         }
 
     @api.model
-    def _tool_github_list_commits(self, args, user, permission):
+    def _tool_github_list_commits(self, args, user, permission, **kw):
         repo = self._normalize_repo(args["repo"])
         branch = args.get("branch", "main")
         limit = args.get("limit", 10)
@@ -522,7 +527,7 @@ class TelegramAIChat(models.AbstractModel):
         }
 
     @api.model
-    def _tool_github_list_prs(self, args, user, permission):
+    def _tool_github_list_prs(self, args, user, permission, **kw):
         repo = self._normalize_repo(args["repo"])
         state = args.get("state", "open")
         data = self._github_api(

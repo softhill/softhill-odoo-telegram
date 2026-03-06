@@ -631,6 +631,29 @@
     </record>
 
     <!-- ==========================================
+         REPORT / DOCUMENT TOOLS
+         ========================================== -->
+
+    <record id="tool_generate_report" model="telegram.tool">
+        <field name="name">generate_report</field>
+        <field name="display_name_field">Generate PDF Report</field>
+        <field name="description">Generates a PDF report from HTML and sends it as a document in the chat. Use this when the user asks for a report, summary, or any data formatted as a PDF document. You must provide the complete HTML content with tables, metrics, and formatting. Use CSS classes: "metric" for KPI cards (with "value" and "label" divs inside), "success"/"danger" for colored text, standard HTML tables for data. The system adds styling automatically. Examples: "send me a sales report", "generate a PDF with overdue invoices", "I need a project status document".</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_generate_report</field>
+        <field name="permission_level">freela</field>
+        <field name="sequence">95</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "title": {"type": "string", "description": "Report title (appears as header and in file caption)"},
+        "html": {"type": "string", "description": "HTML content for the report body. Use h1/h2 for sections, tables for data, div.metric for KPI cards. Do NOT include html/head/body tags - just the content."},
+        "filename": {"type": "string", "description": "PDF filename (e.g. sales_report_march.pdf)"}
+    },
+    "required": ["title", "html"]
+}</field>
+    </record>
+
+    <!-- ==========================================
          SYSTEM / UTILITY TOOLS
          ========================================== -->
 
