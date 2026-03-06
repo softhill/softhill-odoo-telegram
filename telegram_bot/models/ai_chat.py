@@ -10,32 +10,31 @@ _logger = logging.getLogger(__name__)
 
 MAX_TOOL_ROUNDS = 5
 
-SYSTEM_PROMPT = """Voce e o assistente operacional da Softhill, integrado ao Odoo.
-Voce tem acesso direto ao sistema e pode consultar e modificar dados de vendas, compras,
-contatos, projetos, horas, estoque e qualquer outro modulo do Odoo.
-Tambem pode consultar repositorios GitHub da organizacao.
+SYSTEM_PROMPT = """You are an AI assistant integrated with Odoo.
+You have direct access to the system and can query and modify sales, purchases,
+contacts, projects, timesheets, inventory and any other Odoo module data.
+You can also query GitHub repositories.
 
-Responda de forma objetiva em portugues. Use os dados reais do sistema.
-Quando o usuario pedir dados, use as ferramentas disponiveis para consultar o Odoo.
-Quando pedir para criar ou modificar algo, use as ferramentas de escrita.
+Be concise and use real system data. When the user asks for data, use the available tools.
+When asked to create or modify something, use the write tools.
 
-Permissao do usuario: {permission}
-Nome do usuario: {user_name}
+User permission: {permission}
+User name: {user_name}
 """
 
 ADMIN_CONTEXT = """
-Voce tem acesso admin completo. Pode consultar e modificar dados de qualquer usuario,
-criar pedidos, faturas, contatos, e executar acoes administrativas.
+You have full admin access. You can query and modify any data, create orders,
+invoices, contacts, and perform administrative actions.
 """
 
 DEV_CONTEXT = """
-Voce tem acesso dev. Pode consultar e criar registros, mas acoes destrutivas
-requerem confirmacao. Pode acessar repositorios GitHub.
+You have dev access. You can query and create records, but destructive actions
+require confirmation. You can access GitHub repositories.
 """
 
 FREELA_CONTEXT = """
-Voce tem acesso freela. Pode ver apenas seus proprios projetos, tarefas e horas.
-Nao pode modificar registros.
+You have freela access. You can only see your own projects, tasks and timesheets.
+You cannot modify records.
 """
 
 # Models that always require confirmation before write
@@ -56,6 +55,26 @@ ALLOWED_METHODS = {
 BLOCKED_MODELS = {
     "ir.model", "ir.model.access", "ir.rule", "ir.module.module",
     "ir.config_parameter", "res.groups", "ir.actions.server",
+    "res.users", "ir.ui.view", "ir.ui.menu", "ir.attachment",
+    "ir.mail.server", "fetchmail.server", "ir.cron",
+    "base.automation", "ir.actions.act_window",
+}
+
+# Models that freela users are restricted from reading via generic tools.
+# They can still use dedicated tools (sales_summary, etc.) which have
+# their own per-tool permission gating.
+FREELA_BLOCKED_MODELS = {
+    "sale.order", "sale.order.line", "purchase.order", "purchase.order.line",
+    "account.move", "account.move.line", "account.payment",
+    "hr.employee", "hr.contract", "hr.payslip", "hr.expense",
+    "crm.lead", "stock.picking", "stock.move",
+    "res.users", "ir.config_parameter",
+}
+
+# Fields that should never be returned in generic search/read results
+SENSITIVE_FIELDS = {
+    "password", "password_crypt", "api_key", "token",
+    "telegram_api_token", "secret", "credit_limit",
 }
 
 
@@ -95,7 +114,7 @@ class TelegramAIChat(models.AbstractModel):
             [("name", "=", name), ("active", "=", True)], limit=1
         )
         if not tool_rec:
-            return json.dumps({"error": f"Tool desconhecida: {name}"})
+            return json.dumps({"error": f"Unknown tool: {name}"})
 
         method = getattr(self, tool_rec.method_name, None)
         if not method:
@@ -109,7 +128,7 @@ class TelegramAIChat(models.AbstractModel):
             result = method(args, user, permission)
             output = json.dumps(result, ensure_ascii=False, default=str)
             if len(output) > 6000:
-                output = output[:6000] + "\n... (truncado)"
+                output = output[:6000] + "\n... (truncated)"
             return output
         except Exception as e:
             _logger.exception("Tool execution error: %s", name)
@@ -121,7 +140,7 @@ class TelegramAIChat(models.AbstractModel):
         model = args.get("model", "")
         if tool_name in ("delete_record", "execute_action"):
             return True
-        if tool_name == "create_record" and model in CONFIRMATION_MODELS:
+        if tool_name in ("create_record", "update_record") and model in CONFIRMATION_MODELS:
             return True
         return False
 
@@ -151,7 +170,7 @@ class TelegramAIChat(models.AbstractModel):
             "needs_confirmation": True,
             "confirmation_id": pending.id,
             "summary": pending.summary,
-            "message": f"Acao requer confirmacao: {pending.summary}. O usuario recebera botoes para confirmar ou cancelar.",
+            "message": f"Action requires confirmation: {pending.summary}. The user will receive buttons to confirm or cancel.",
         })
 
     # ==========================================
@@ -166,22 +185,37 @@ class TelegramAIChat(models.AbstractModel):
         limit = args.get("limit", 10)
         order = args.get("order", "")
 
-        if permission == "freela" and model_name in (
-            "project.task", "account.analytic.line"
-        ):
-            domain = domain + [("user_id", "=", user.id)]
+        if permission == "freela":
+            if model_name in FREELA_BLOCKED_MODELS:
+                return {"error": f"Access denied: use the dedicated tools for {model_name} data, or ask an admin."}
+            if model_name in ("project.task", "account.analytic.line"):
+                domain = domain + [("user_id", "=", user.id)]
 
         Model = self.env[model_name].sudo()
         kwargs = {"limit": limit}
         if order:
             kwargs["order"] = order
+
+        # Filter out sensitive fields
+        if field_list:
+            field_list = [f for f in field_list if f not in SENSITIVE_FIELDS]
+
         records = Model.search_read(domain, field_list, **kwargs)
+
+        # Remove sensitive fields from results if no field_list was specified
+        if not args.get("fields"):
+            for rec in records:
+                for sf in SENSITIVE_FIELDS:
+                    rec.pop(sf, None)
+
         return {"model": model_name, "count": len(records), "records": records}
 
     @api.model
     def _tool_count_odoo(self, args, user, permission):
         model_name = args["model"]
         domain = args.get("domain", [])
+        if permission == "freela" and model_name in FREELA_BLOCKED_MODELS:
+            return {"error": f"Access denied: use the dedicated tools for {model_name} data, or ask an admin."}
         count = self.env[model_name].sudo().search_count(domain)
         return {"model": model_name, "count": count}
 
@@ -190,11 +224,22 @@ class TelegramAIChat(models.AbstractModel):
         model_name = args["model"]
         record_id = args["record_id"]
         field_list = args.get("fields")
+        if permission == "freela" and model_name in FREELA_BLOCKED_MODELS:
+            return {"error": f"Access denied: use the dedicated tools for {model_name} data, or ask an admin."}
+
+        if field_list:
+            field_list = [f for f in field_list if f not in SENSITIVE_FIELDS]
+
         records = self.env[model_name].sudo().search_read(
             [("id", "=", record_id)], field_list, limit=1
         )
         if not records:
-            return {"error": f"{model_name} #{record_id} nao encontrado"}
+            return {"error": f"{model_name} #{record_id} not found"}
+
+        if not args.get("fields"):
+            for sf in SENSITIVE_FIELDS:
+                records[0].pop(sf, None)
+
         return {"record": records[0]}
 
     @api.model
@@ -228,7 +273,7 @@ class TelegramAIChat(models.AbstractModel):
         values = args.get("values", {})
 
         if model_name in BLOCKED_MODELS:
-            return {"error": f"Modelo {model_name} nao pode ser modificado via bot"}
+            return {"error": f"Model {model_name} cannot be modified via bot"}
 
         record = self.env[model_name].sudo().create(values)
         return {"id": record.id, "display_name": record.display_name}
@@ -240,11 +285,11 @@ class TelegramAIChat(models.AbstractModel):
         values = args.get("values", {})
 
         if model_name in BLOCKED_MODELS:
-            return {"error": f"Modelo {model_name} nao pode ser modificado via bot"}
+            return {"error": f"Model {model_name} cannot be modified via bot"}
 
         record = self.env[model_name].sudo().browse(record_id)
         if not record.exists():
-            return {"error": f"{model_name} #{record_id} nao encontrado"}
+            return {"error": f"{model_name} #{record_id} not found"}
 
         record.write(values)
         return {"id": record.id, "display_name": record.display_name, "updated": True}
@@ -257,13 +302,13 @@ class TelegramAIChat(models.AbstractModel):
 
         if method not in ALLOWED_METHODS:
             return {
-                "error": f"Metodo '{method}' nao permitido. "
-                f"Validos: {', '.join(sorted(ALLOWED_METHODS))}"
+                "error": f"Method '{method}' not allowed. "
+                f"Allowed: {', '.join(sorted(ALLOWED_METHODS))}"
             }
 
         record = self.env[model_name].sudo().browse(record_id)
         if not record.exists():
-            return {"error": f"{model_name} #{record_id} nao encontrado"}
+            return {"error": f"{model_name} #{record_id} not found"}
 
         getattr(record, method)()
         return {"executed": method, "id": record.id, "display_name": record.display_name}
@@ -274,11 +319,11 @@ class TelegramAIChat(models.AbstractModel):
         record_id = args["record_id"]
 
         if model_name in BLOCKED_MODELS:
-            return {"error": f"Modelo {model_name} nao pode ser modificado via bot"}
+            return {"error": f"Model {model_name} cannot be modified via bot"}
 
         record = self.env[model_name].sudo().browse(record_id)
         if not record.exists():
-            return {"error": f"{model_name} #{record_id} nao encontrado"}
+            return {"error": f"{model_name} #{record_id} not found"}
 
         name = record.display_name
         record.unlink()
@@ -293,7 +338,7 @@ class TelegramAIChat(models.AbstractModel):
 
         record = self.env[model_name].sudo().browse(record_id)
         if not record.exists():
-            return {"error": f"{model_name} #{record_id} nao encontrado"}
+            return {"error": f"{model_name} #{record_id} not found"}
 
         subtype = "mail.mt_comment" if msg_type == "comment" else "mail.mt_note"
         record.message_post(
@@ -314,7 +359,7 @@ class TelegramAIChat(models.AbstractModel):
         ICP = self.env["ir.config_parameter"].sudo()
         token = ICP.get_param("telegram_base.github_token", "")
         if not token:
-            return {"error": "GitHub token nao configurado. Configure em Configuracoes > Telegram."}
+            return {"error": "GitHub token not configured. Set it in Settings > Telegram."}
 
         headers = {
             "Authorization": f"token {token}",
@@ -388,7 +433,7 @@ class TelegramAIChat(models.AbstractModel):
             except Exception:
                 content = "(binary file)"
         if len(content) > 10000:
-            content = content[:10000] + "\n\n... (truncado)"
+            content = content[:10000] + "\n\n... (truncated)"
         return {"path": path, "size": data.get("size", 0), "content": content}
 
     @api.model
@@ -468,7 +513,7 @@ class TelegramAIChat(models.AbstractModel):
         """Send message to AI with function calling. Returns (response, tool_calls, usage)."""
         config = self._get_config()
         if not config["api_key"]:
-            return "IA nao configurada. Configure em Configuracoes > Telegram.", [], {}
+            return "AI not configured. Set it in Settings > Telegram.", [], {}
 
         perm_context = {
             "admin": ADMIN_CONTEXT,
@@ -513,7 +558,7 @@ class TelegramAIChat(models.AbstractModel):
                 data = resp.json()
             except Exception:
                 _logger.exception("AI API error")
-                return "Erro ao comunicar com a IA.", [], {}
+                return "Error communicating with the AI provider.", [], {}
 
             choice = data["choices"][0]
             assistant_msg = choice["message"]
@@ -544,4 +589,4 @@ class TelegramAIChat(models.AbstractModel):
                     "content": result,
                 })
 
-        return "Consulta muito complexa. Tente ser mais especifico.", all_tool_calls, usage
+        return "Query too complex. Please be more specific.", all_tool_calls, usage

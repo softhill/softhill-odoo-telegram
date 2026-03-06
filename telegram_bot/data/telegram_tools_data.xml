@@ -104,6 +104,7 @@
         <field name="category">write</field>
         <field name="method_name">_tool_update_record</field>
         <field name="permission_level">dev</field>
+        <field name="requires_confirmation" eval="True"/>
         <field name="sequence">11</field>
         <field name="input_schema">{
     "type": "object",

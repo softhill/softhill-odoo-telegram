@@ -79,13 +79,24 @@ class TelegramAPI(http.Controller):
         if not model:
             return _json_response({"error": "model is required"}, 400)
 
-        try:
-            records = request.env[model].search_read(
-                domain, fields_list, limit=limit, order=order
-            )
-            return _json_response({"model": model, "count": len(records), "records": records})
-        except Exception as e:
-            return _json_response({"error": str(e)}, 400)
+        # Enforce same permission checks as AI tools
+        user = request._api_user
+        if user.has_group("telegram_base.group_telegram_admin"):
+            permission = "admin"
+        elif user.has_group("telegram_base.group_telegram_dev"):
+            permission = "dev"
+        else:
+            permission = "freela"
+
+        ai_chat = request.env["telegram.ai.chat"]
+        result = ai_chat._tool_search_odoo(
+            {"model": model, "domain": domain, "fields": fields_list,
+             "limit": limit, "order": order},
+            user, permission,
+        )
+        if "error" in result:
+            return _json_response(result, 403)
+        return _json_response(result)
 
     @http.route("/api/v1/models", type="http", auth="none", methods=["GET"], csrf=False)
     @_authenticate
