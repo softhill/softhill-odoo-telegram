@@ -121,8 +121,9 @@ class TelegramBot(models.AbstractModel):
         if not user:
             self.send_message(
                 chat_tg_id,
-                "You are not linked to Odoo. "
-                "Use /link <your_email> to connect.",
+                "You are not linked to Odoo.\n"
+                "Generate a code from your Odoo profile → Telegram tab, "
+                "then use /link <code>.",
             )
             return
 
@@ -164,17 +165,25 @@ class TelegramBot(models.AbstractModel):
             self.send_message(
                 chat_id,
                 f"Hello, {name}! I'm {bot_name}.\n\n"
-                "Use /link <your_email> to connect your Odoo account.",
+                "To connect your Odoo account:\n"
+                "1. Open your Odoo profile → Telegram tab\n"
+                "2. Click *Generate Link Code*\n"
+                "3. Use /link <code> here",
             )
 
     @api.model
     def _handle_link(self, chat_id, telegram_id, text, from_user):
         parts = text.split(maxsplit=1)
         if len(parts) < 2:
-            self.send_message(chat_id, "Usage: /link <your_odoo_email>")
+            self.send_message(
+                chat_id,
+                "Usage: /link <code>\n\n"
+                "To get your code, open your Odoo profile → Telegram tab "
+                "→ click *Generate Link Code*.",
+            )
             return
 
-        email = parts[1].strip()
+        code = parts[1].strip()
 
         # Check if already linked
         existing = self.env["res.users"].sudo().search(
@@ -186,24 +195,27 @@ class TelegramBot(models.AbstractModel):
             )
             return
 
-        # Find by email
-        user = self.env["res.users"].sudo().search(
-            [("login", "=", email)], limit=1
-        )
-        if not user:
-            self.send_message(
-                chat_id, "Email not found in Odoo. Please check and try again."
-            )
+        # Verify code
+        Users = self.env["res.users"]
+        user, error = Users._verify_telegram_link_code(code)
+        if error:
+            self.send_message(chat_id, error)
             return
 
         if user.telegram_id:
             self.send_message(
                 chat_id,
-                "This Odoo user is already linked to another Telegram account.",
+                "This Odoo account is already linked to another Telegram user.",
             )
             return
 
-        user.sudo().write({"telegram_id": telegram_id})
+        # Link and clear the code
+        user.sudo().write({
+            "telegram_id": telegram_id,
+            "telegram_link_code_hash": False,
+            "telegram_link_code_expiry": False,
+            "telegram_link_attempts": 0,
+        })
         self.send_message(
             chat_id,
             f"Successfully linked! Welcome, {user.name}.\n"

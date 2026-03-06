@@ -8,9 +8,19 @@
             <xpath expr="//page[@name='preferences']" position="after">
                 <page string="Telegram" name="telegram">
                     <group>
-                        <group string="Link">
-                            <field name="telegram_id"/>
+                        <group string="Telegram Account">
+                            <field name="telegram_id" readonly="1"/>
                             <field name="telegram_profile_id"/>
+                            <button name="action_generate_telegram_link_code"
+                                    string="Generate Link Code" type="object"
+                                    class="btn-primary"
+                                    invisible="telegram_id"
+                                    help="Generate a 6-digit code, then use /link &lt;code&gt; in Telegram"/>
+                            <button name="action_unlink_telegram"
+                                    string="Unlink Telegram" type="object"
+                                    class="btn-danger"
+                                    invisible="not telegram_id"
+                                    confirm="This will disconnect the Telegram account. The user will need to re-link."/>
                         </group>
                         <group string="API Token"
                                groups="telegram_base.group_telegram_admin">
