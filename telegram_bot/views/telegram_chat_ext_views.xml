@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Add Tools tab to chat form (field defined in telegram_bot) -->
+    <record id="view_telegram_chat_form_tools" model="ir.ui.view">
+        <field name="name">telegram.chat.form.tools</field>
+        <field name="model">telegram.chat</field>
+        <field name="inherit_id" ref="telegram_base.view_telegram_chat_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Allowed Tools">
+                    <field name="allowed_tool_ids" widget="many2many_tags"
+                           options="{'color_field': 'color'}"/>
+                    <p class="text-muted" invisible="allowed_tool_ids">
+                        No tool restriction set. All tools allowed based on user permission level.
+                    </p>
+                    <p class="text-muted" invisible="not allowed_tool_ids">
+                        Only the tools listed above will be available in this chat.
+                    </p>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

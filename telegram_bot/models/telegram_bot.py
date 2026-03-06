@@ -127,16 +127,22 @@ class TelegramBot(models.AbstractModel):
             return
 
         # Check group chat: only respond if mentioned or replied
-        if message["chat"]["type"] != "private":
+        tg_chat = message["chat"]
+        if tg_chat["type"] != "private":
             if not self._should_respond_in_group(message):
                 return
+            # Auto-register group if not yet known
+            self._ensure_chat_registered(tg_chat)
 
-        # Resolve permission context
+        # Resolve permission context and chat record
+        chat_rec = self.env["telegram.chat"].sudo().search(
+            [("telegram_chat_id", "=", chat_tg_id)], limit=1
+        )
         permission = self._resolve_permission(user, chat_tg_id)
 
         # Process with AI
         self.send_typing(chat_tg_id)
-        self._process_ai_message(chat_tg_id, user, text, permission)
+        self._process_ai_message(chat_tg_id, user, text, permission, chat_rec=chat_rec)
 
     @api.model
     def _get_bot_name(self):
@@ -207,6 +213,28 @@ class TelegramBot(models.AbstractModel):
             "Linked Telegram %s to Odoo user %s (%s)",
             telegram_id, user.id, user.name,
         )
+
+    @api.model
+    def _ensure_chat_registered(self, tg_chat):
+        """Auto-register a Telegram group/supergroup if not yet known."""
+        chat_tg_id = str(tg_chat["id"])
+        Chat = self.env["telegram.chat"].sudo()
+        existing = Chat.search([("telegram_chat_id", "=", chat_tg_id)], limit=1)
+        if existing:
+            return existing
+
+        chat_type = tg_chat.get("type", "group")
+        name = tg_chat.get("title", f"Chat {chat_tg_id}")
+        odoo_type = "group" if chat_type in ("group", "supergroup") else "team"
+
+        chat = Chat.create({
+            "name": name,
+            "telegram_chat_id": chat_tg_id,
+            "chat_type": odoo_type,
+            "permission_level": "freela",  # safe default for new groups
+        })
+        _logger.info("Auto-registered Telegram group: %s (%s)", name, chat_tg_id)
+        return chat
 
     @api.model
     def _should_respond_in_group(self, message):
@@ -294,7 +322,7 @@ class TelegramBot(models.AbstractModel):
             self.send_message(chat_tg_id, "Action cancelled.")
 
     @api.model
-    def _process_ai_message(self, chat_id, user, text, permission):
+    def _process_ai_message(self, chat_id, user, text, permission, chat_rec=None):
         """Process a message through the AI and send the response."""
         import time
         start = time.time()
@@ -303,7 +331,7 @@ class TelegramBot(models.AbstractModel):
         error_msg = ""
         try:
             response, tool_calls, usage = ai.chat(
-                text, user, permission, chat_id=chat_id
+                text, user, permission, chat_id=chat_id, chat_rec=chat_rec
             )
         except Exception as e:
             _logger.exception("AI chat error")

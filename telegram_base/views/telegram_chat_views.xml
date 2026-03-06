@@ -26,20 +26,26 @@
             <form>
                 <sheet>
                     <group>
-                        <group>
+                        <group string="Chat">
                             <field name="name"/>
                             <field name="telegram_chat_id"/>
                             <field name="chat_type"/>
-                        </group>
-                        <group>
-                            <field name="profile_id"/>
-                            <field name="permission_level"
-                                   invisible="profile_id"/>
                             <field name="project_id"
                                    invisible="chat_type != 'project'"/>
                             <field name="active"/>
                         </group>
+                        <group string="Permissions">
+                            <field name="profile_id"/>
+                            <field name="permission_level"
+                                   invisible="profile_id"/>
+                        </group>
                     </group>
+                    <notebook>
+                        <page string="Notes">
+                            <field name="description" nolabel="1"
+                                   placeholder="Internal notes: who participates, what this chat is for, any context the AI should know..."/>
+                        </page>
+                    </notebook>
                 </sheet>
             </form>
         </field>

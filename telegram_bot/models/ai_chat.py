@@ -115,25 +115,33 @@ class TelegramAIChat(models.AbstractModel):
         }
 
     @api.model
-    def _get_tools(self, permission, user_profile=None):
+    def _get_tools(self, permission, user_profile=None, chat_rec=None):
         """Return OpenAI-format tool definitions from telegram.tool records.
 
-        If user_profile is a telegram.user.profile record, tools with
-        allowed_profile_ids are filtered by profile match. Tools without
-        profiles fall back to the legacy permission_level comparison.
+        Filtering layers (applied in order):
+        1. Chat whitelist: if chat has allowed_tool_ids, only those tools
+        2. Profile-based: if tool has allowed_profile_ids, check user profile
+        3. Legacy fallback: compare permission levels
         """
         perm_levels = {"freela": 0, "dev": 1, "admin": 2}
         user_level = perm_levels.get(permission, 0)
 
         tools = self.env["telegram.tool"].sudo().search([("active", "=", True)])
+
+        # Chat-level whitelist: restrict to allowed tools
+        chat_allowed = chat_rec.allowed_tool_ids if chat_rec and chat_rec.allowed_tool_ids else None
+
         result = []
         for tool in tools:
+            # Layer 1: chat whitelist
+            if chat_allowed and tool not in chat_allowed:
+                continue
+            # Layer 2: profile-based access
             if tool.allowed_profile_ids and user_profile:
-                # Profile-based access: check if user profile is in allowed list
                 if user_profile in tool.allowed_profile_ids:
                     result.append(tool.to_openai_format())
                 continue
-            # Legacy fallback: compare permission levels
+            # Layer 3: legacy permission level
             tool_level = perm_levels.get(tool.permission_level, 0)
             if user_level >= tool_level:
                 result.append(tool.to_openai_format())
@@ -541,7 +549,7 @@ class TelegramAIChat(models.AbstractModel):
     # ==========================================
 
     @api.model
-    def chat(self, message, user, permission, chat_id=None):
+    def chat(self, message, user, permission, chat_id=None, chat_rec=None):
         """Send message to AI with function calling. Returns (response, tool_calls, usage)."""
         config = self._get_config()
         if not config["api_key"]:
@@ -559,11 +567,15 @@ class TelegramAIChat(models.AbstractModel):
             permission=profile_name, user_name=user.name
         ) + perm_context
 
+        # Add chat context if in a group
+        if chat_rec and chat_rec.description:
+            system += f"\nChat context: {chat_rec.description}\n"
+
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": message},
         ]
-        tools = self._get_tools(permission, user_profile=user_profile)
+        tools = self._get_tools(permission, user_profile=user_profile, chat_rec=chat_rec)
         all_tool_calls = []
 
         headers = {

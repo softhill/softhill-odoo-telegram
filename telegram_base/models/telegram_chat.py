@@ -22,6 +22,9 @@ class TelegramChat(models.Model):
         default="team",
         required=True,
     )
+    description = fields.Text(
+        help="Internal notes about this chat (who participates, purpose, etc.)",
+    )
     project_id = fields.Many2one("project.project", string="Project")
     permission_level = fields.Selection(
         [
@@ -31,13 +34,15 @@ class TelegramChat(models.Model):
         ],
         default="dev",
         required=True,
-        help="Legacy permission level (used when no profile is set)",
+        help="Maximum permission level for this chat. "
+             "Effective permission = min(user level, chat level).",
     )
     profile_id = fields.Many2one(
         "telegram.user.profile",
         string="Chat Profile",
         help="If set, overrides permission_level for this chat.",
     )
+    # allowed_tool_ids defined in telegram_bot module (inherits telegram.chat)
     active = fields.Boolean(default=True)
 
     _sql_constraints = [

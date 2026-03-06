@@ -1,4 +1,5 @@
 from . import telegram_tool
+from . import telegram_chat_ext
 from . import telegram_message
 from . import telegram_pending_action
 from . import telegram_bot

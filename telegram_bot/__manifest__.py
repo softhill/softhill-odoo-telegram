@@ -15,6 +15,7 @@
         "views/telegram_bot_dashboard.xml",
         "views/telegram_tool_views.xml",
         "views/telegram_analytics_views.xml",
+        "views/telegram_chat_ext_views.xml",
     ],
     "external_dependencies": {
         "python": ["requests"],
