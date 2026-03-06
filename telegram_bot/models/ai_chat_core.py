@@ -260,7 +260,6 @@ class TelegramAIChatCore(models.AbstractModel):
     @api.model
     def _tool_project_summary(self, args, user, permission):
         Task = self.env["project.task"].sudo()
-        AAL = self.env["account.analytic.line"].sudo()
         period = args.get("period", "month")
 
         task_domain = []
@@ -285,18 +284,24 @@ class TelegramAIChatCore(models.AbstractModel):
             lambda t: t.date_deadline and t.date_deadline < today and not t.stage_id.fold
         )
 
-        # Timesheets
-        ts_domain = [("project_id", "!=", False)]
-        ts_domain += _period_domain("date", period)
-        if args.get("project"):
-            ts_domain.append(("project_id.name", "ilike", args["project"]))
-        if args.get("user"):
-            ts_domain.append(("user_id.name", "ilike", args["user"]))
-        elif permission == "freela":
-            ts_domain.append(("user_id", "=", user.id))
-
-        timesheets = AAL.search(ts_domain)
-        total_hours = sum(timesheets.mapped("unit_amount"))
+        # Timesheets (only if hr_timesheet is installed)
+        total_hours = 0
+        try:
+            AAL = self.env["account.analytic.line"].sudo()
+            # Check if project_id field exists (hr_timesheet adds it)
+            if "project_id" in AAL._fields:
+                ts_domain = [("project_id", "!=", False)]
+                ts_domain += _period_domain("date", period)
+                if args.get("project"):
+                    ts_domain.append(("project_id.name", "ilike", args["project"]))
+                if args.get("user"):
+                    ts_domain.append(("user_id.name", "ilike", args["user"]))
+                elif permission == "freela":
+                    ts_domain.append(("user_id", "=", user.id))
+                timesheets = AAL.search(ts_domain)
+                total_hours = sum(timesheets.mapped("unit_amount"))
+        except Exception:
+            pass
 
         return {
             "total_tasks": len(tasks),
@@ -312,6 +317,10 @@ class TelegramAIChatCore(models.AbstractModel):
 
     @api.model
     def _tool_log_timesheet(self, args, user, permission):
+        AAL = self.env["account.analytic.line"].sudo()
+        if "project_id" not in AAL._fields:
+            return {"error": "Modulo hr_timesheet nao instalado. Instale para registrar horas."}
+
         Task = self.env["project.task"].sudo()
         task_ref = args["task"]
 
@@ -324,7 +333,7 @@ class TelegramAIChatCore(models.AbstractModel):
             return {"error": f"Tarefa '{task_ref}' nao encontrada"}
 
         ts_date = args.get("date", date.today().isoformat())
-        ts = self.env["account.analytic.line"].sudo().create({
+        ts = AAL.create({
             "task_id": task.id,
             "project_id": task.project_id.id,
             "name": args["description"],
@@ -739,5 +748,536 @@ class TelegramAIChatCore(models.AbstractModel):
                     "state": e.state,
                 }
                 for e in expenses
+            ],
+        }
+
+    # ------------------------------------------------------------------
+    # INVOICE WRITE TOOLS
+    # ------------------------------------------------------------------
+
+    def _tool_create_invoice(self, args, user, permission, **kw):
+        """Create a customer or vendor invoice."""
+        partner = _resolve_partner(self.env, args["partner"])
+        if not partner:
+            return {"error": f"Partner not found: {args['partner']}"}
+
+        move_type = args.get("type", "out_invoice")
+        invoice_lines = []
+        for line in args.get("lines", []):
+            vals = {
+                "name": line.get("description", ""),
+                "quantity": line.get("qty", 1),
+                "price_unit": line.get("price", 0),
+            }
+            if line.get("product"):
+                prod = _resolve_product(self.env, line["product"])
+                if prod:
+                    vals["product_id"] = prod.id
+                    if not vals["name"]:
+                        vals["name"] = prod.name
+                    if not vals["price_unit"]:
+                        vals["price_unit"] = prod.lst_price
+            invoice_lines.append((0, 0, vals))
+
+        Move = self.env["account.move"].sudo()
+        invoice = Move.create({
+            "move_type": move_type,
+            "partner_id": partner.id,
+            "ref": args.get("ref", ""),
+            "invoice_line_ids": invoice_lines,
+        })
+
+        return {
+            "id": invoice.id,
+            "name": invoice.name or "Draft",
+            "type": move_type,
+            "partner": partner.name,
+            "amount_total": invoice.amount_total,
+            "state": invoice.state,
+            "url": f"/odoo/accounting/{invoice.id}",
+        }
+
+    def _tool_register_payment(self, args, user, permission, **kw):
+        """Register payment on an invoice."""
+        Move = self.env["account.move"].sudo()
+        ref = args["invoice"]
+
+        if isinstance(ref, int) or (isinstance(ref, str) and ref.isdigit()):
+            invoice = Move.browse(int(ref)).exists()
+        else:
+            invoice = Move.search([
+                "|", ("name", "ilike", ref), ("ref", "ilike", ref),
+                ("move_type", "in", ("out_invoice", "in_invoice")),
+            ], limit=1)
+
+        if not invoice:
+            return {"error": f"Invoice not found: {ref}"}
+        if invoice.payment_state == "paid":
+            return {"error": f"Invoice {invoice.name} is already paid"}
+        if invoice.state != "posted":
+            return {"error": f"Invoice {invoice.name} is not posted (state: {invoice.state})"}
+
+        amount = args.get("amount", invoice.amount_residual)
+
+        journal_domain = [("type", "in", ("bank", "cash"))]
+        if args.get("journal"):
+            journal_domain.append(("name", "ilike", args["journal"]))
+        journal = self.env["account.journal"].sudo().search(journal_domain, limit=1)
+        if not journal:
+            return {"error": "No payment journal found"}
+
+        PaymentRegister = self.env["account.payment.register"].sudo()
+        wizard = PaymentRegister.with_context(
+            active_model="account.move",
+            active_ids=invoice.ids,
+        ).create({
+            "amount": amount,
+            "journal_id": journal.id,
+        })
+        wizard.action_create_payments()
+
+        return {
+            "invoice": invoice.name,
+            "amount_paid": amount,
+            "journal": journal.name,
+            "remaining": invoice.amount_residual,
+            "payment_state": invoice.payment_state,
+        }
+
+    # ------------------------------------------------------------------
+    # PURCHASE WRITE TOOLS
+    # ------------------------------------------------------------------
+
+    def _tool_create_purchase_order(self, args, user, permission, **kw):
+        """Create a purchase order (RFQ)."""
+        partner = _resolve_partner(self.env, args["partner"])
+        if not partner:
+            return {"error": f"Supplier not found: {args['partner']}"}
+
+        order_lines = []
+        for line in args.get("lines", []):
+            prod = _resolve_product(self.env, line["product"])
+            if not prod:
+                return {"error": f"Product not found: {line['product']}"}
+            order_lines.append((0, 0, {
+                "product_id": prod.id,
+                "name": prod.name,
+                "product_qty": line.get("qty", 1),
+                "price_unit": line.get("price", prod.standard_price or 0),
+                "product_uom": prod.uom_po_id.id or prod.uom_id.id,
+            }))
+
+        PO = self.env["purchase.order"].sudo()
+        po = PO.create({
+            "partner_id": partner.id,
+            "order_line": order_lines,
+        })
+
+        return {
+            "id": po.id,
+            "name": po.name,
+            "partner": partner.name,
+            "amount_total": po.amount_total,
+            "state": po.state,
+            "url": f"/odoo/purchase/{po.id}",
+        }
+
+    # ------------------------------------------------------------------
+    # PRODUCT TOOLS
+    # ------------------------------------------------------------------
+
+    def _tool_find_product(self, args, user, permission, **kw):
+        """Search products by name, reference or barcode."""
+        Product = self.env["product.product"].sudo()
+        query = args["query"]
+        domain = ["|", "|",
+            ("name", "ilike", query),
+            ("default_code", "ilike", query),
+            ("barcode", "ilike", query),
+        ]
+        if args.get("category"):
+            domain.append(("categ_id.name", "ilike", args["category"]))
+        if args.get("type"):
+            domain.append(("detailed_type", "=", args["type"]))
+
+        limit = args.get("limit", 10)
+        products = Product.search(domain, limit=limit)
+
+        return {
+            "count": len(products),
+            "products": [
+                {
+                    "id": p.id,
+                    "name": p.name,
+                    "default_code": p.default_code or "",
+                    "barcode": p.barcode or "",
+                    "type": p.detailed_type,
+                    "list_price": p.lst_price,
+                    "standard_price": p.standard_price,
+                    "qty_available": p.qty_available,
+                    "virtual_available": p.virtual_available,
+                    "category": p.categ_id.name,
+                    "active": p.active,
+                }
+                for p in products
+            ],
+        }
+
+    def _tool_create_product(self, args, user, permission, **kw):
+        """Create a product."""
+        Product = self.env["product.product"].sudo()
+        vals = {
+            "name": args["name"],
+            "detailed_type": args.get("type", "consu"),
+        }
+        if args.get("list_price"):
+            vals["lst_price"] = args["list_price"]
+        if args.get("standard_price"):
+            vals["standard_price"] = args["standard_price"]
+        if args.get("default_code"):
+            vals["default_code"] = args["default_code"]
+        if args.get("barcode"):
+            vals["barcode"] = args["barcode"]
+        if args.get("description"):
+            vals["description"] = args["description"]
+
+        product = Product.create(vals)
+        return {
+            "id": product.id,
+            "name": product.name,
+            "default_code": product.default_code or "",
+            "list_price": product.lst_price,
+            "type": product.detailed_type,
+        }
+
+    # ------------------------------------------------------------------
+    # HR WRITE TOOLS
+    # ------------------------------------------------------------------
+
+    def _tool_create_expense(self, args, user, permission, **kw):
+        """Create an expense."""
+        Expense = self.env["hr.expense"].sudo()
+        emp = self.env["hr.employee"].sudo().search([("user_id", "=", user.id)], limit=1)
+        if not emp:
+            return {"error": "No employee record found for your user"}
+
+        vals = {
+            "name": args["name"],
+            "employee_id": emp.id,
+            "total_amount": args["amount"],
+            "date": args.get("date", date.today().isoformat()),
+        }
+        if args.get("product"):
+            prod = self.env["product.product"].sudo().search([
+                ("name", "ilike", args["product"]),
+                ("can_be_expensed", "=", True),
+            ], limit=1)
+            if prod:
+                vals["product_id"] = prod.id
+
+        expense = Expense.create(vals)
+        return {
+            "id": expense.id,
+            "name": expense.name,
+            "amount": expense.total_amount,
+            "employee": emp.name,
+            "state": expense.state,
+        }
+
+    # ------------------------------------------------------------------
+    # DISCUSS / MESSAGING TOOLS
+    # ------------------------------------------------------------------
+
+    def _tool_send_message(self, args, user, permission, **kw):
+        """Send an internal message via Odoo Discuss."""
+        Partner = self.env["res.partner"].sudo()
+        body = args["body"]
+        subject = args.get("subject", "")
+        sent_to = []
+
+        for recipient in args.get("to", []):
+            partner = Partner.search([
+                "|", ("name", "ilike", recipient), ("email", "ilike", recipient),
+            ], limit=1)
+            if partner:
+                channel = self.env["discuss.channel"].sudo().search([
+                    ("channel_type", "=", "chat"),
+                    ("channel_member_ids.partner_id", "in", [user.partner_id.id, partner.id]),
+                ], limit=1)
+                if not channel:
+                    channel = self.env["discuss.channel"].sudo().channel_get([partner.id])
+
+                channel.message_post(
+                    body=body,
+                    subject=subject or False,
+                    message_type="comment",
+                    subtype_xmlid="mail.mt_comment",
+                    author_id=user.partner_id.id,
+                )
+                sent_to.append(partner.name)
+            else:
+                sent_to.append(f"{recipient} (not found)")
+
+        return {"sent_to": sent_to, "body_preview": body[:100]}
+
+    # ------------------------------------------------------------------
+    # REPORT / ANALYTICS TOOLS
+    # ------------------------------------------------------------------
+
+    def _tool_sales_by_product(self, args, user, permission, **kw):
+        """Ranking of best-selling products."""
+        period = args.get("period", "month")
+        limit = args.get("limit", 10)
+        order_by = args.get("order_by", "revenue")
+
+        domain = [("state", "in", ("sale", "done"))]
+        domain += _period_domain("date_order", period)
+
+        SOL = self.env["sale.order.line"].sudo()
+        lines = SOL.search(domain)
+
+        product_data = {}
+        for line in lines:
+            pid = line.product_id.id
+            if pid not in product_data:
+                product_data[pid] = {
+                    "name": line.product_id.name,
+                    "default_code": line.product_id.default_code or "",
+                    "qty": 0,
+                    "revenue": 0,
+                }
+            product_data[pid]["qty"] += line.product_uom_qty
+            product_data[pid]["revenue"] += line.price_subtotal
+
+        key = "revenue" if order_by == "revenue" else "qty"
+        ranked = sorted(product_data.values(), key=lambda x: x[key], reverse=True)[:limit]
+
+        return {
+            "period": period,
+            "order_by": order_by,
+            "products": [
+                {**p, "qty": round(p["qty"], 2), "revenue": round(p["revenue"], 2)}
+                for p in ranked
+            ],
+        }
+
+    def _tool_sales_by_salesperson(self, args, user, permission, **kw):
+        """Ranking of salespeople by revenue."""
+        period = args.get("period", "month")
+        limit = args.get("limit", 10)
+
+        domain = [("state", "in", ("sale", "done"))]
+        domain += _period_domain("date_order", period)
+
+        SO = self.env["sale.order"].sudo()
+        orders = SO.search(domain)
+
+        sp_data = {}
+        for o in orders:
+            uid = o.user_id.id if o.user_id else 0
+            name = o.user_id.name if o.user_id else "Unassigned"
+            if uid not in sp_data:
+                sp_data[uid] = {"name": name, "orders": 0, "revenue": 0}
+            sp_data[uid]["orders"] += 1
+            sp_data[uid]["revenue"] += o.amount_total
+
+        ranked = sorted(sp_data.values(), key=lambda x: x["revenue"], reverse=True)[:limit]
+        return {
+            "period": period,
+            "salespeople": [
+                {**s, "revenue": round(s["revenue"], 2)} for s in ranked
+            ],
+        }
+
+    def _tool_overdue_invoices(self, args, user, permission, **kw):
+        """List overdue invoices."""
+        days = args.get("days_overdue", 1)
+        limit = args.get("limit", 20)
+        cutoff = (date.today() - timedelta(days=days)).isoformat()
+
+        Move = self.env["account.move"].sudo()
+        invoices = Move.search([
+            ("move_type", "=", "out_invoice"),
+            ("state", "=", "posted"),
+            ("payment_state", "in", ("not_paid", "partial")),
+            ("invoice_date_due", "<=", cutoff),
+        ], limit=limit, order="invoice_date_due asc")
+
+        today = date.today()
+        return {
+            "count": len(invoices),
+            "total_overdue": round(sum(invoices.mapped("amount_residual")), 2),
+            "invoices": [
+                {
+                    "id": inv.id,
+                    "name": inv.name,
+                    "partner": inv.partner_id.name,
+                    "amount_total": inv.amount_total,
+                    "amount_residual": inv.amount_residual,
+                    "date_due": str(inv.invoice_date_due),
+                    "days_overdue": (today - inv.invoice_date_due).days,
+                }
+                for inv in invoices
+            ],
+        }
+
+    # ------------------------------------------------------------------
+    # RECRUITMENT TOOLS
+    # ------------------------------------------------------------------
+
+    def _tool_recruitment(self, args, user, permission, **kw):
+        """List open positions and applicants."""
+        if not self.env["ir.module.module"].sudo().search([
+            ("name", "=", "hr_recruitment"), ("state", "=", "installed"),
+        ]):
+            return {"error": "Module hr_recruitment is not installed"}
+
+        Job = self.env["hr.job"].sudo()
+        job_domain = [("no_of_recruitment", ">", 0)]
+        if args.get("department"):
+            job_domain.append(("department_id.name", "ilike", args["department"]))
+        if args.get("job"):
+            job_domain.append(("name", "ilike", args["job"]))
+
+        jobs = Job.search(job_domain, limit=20)
+
+        Applicant = self.env["hr.applicant"].sudo()
+        applicants = Applicant.search([
+            ("job_id", "in", jobs.ids),
+        ], limit=50, order="create_date desc")
+
+        return {
+            "open_positions": len(jobs),
+            "total_applicants": len(applicants),
+            "jobs": [
+                {
+                    "id": j.id,
+                    "name": j.name,
+                    "department": j.department_id.name or "",
+                    "vacancies": j.no_of_recruitment,
+                    "hired": j.no_of_hired_employee,
+                    "applicants": len(Applicant.search([("job_id", "=", j.id)])),
+                }
+                for j in jobs
+            ],
+        }
+
+    # ------------------------------------------------------------------
+    # WEBSITE / EVENTS TOOLS
+    # ------------------------------------------------------------------
+
+    def _tool_events(self, args, user, permission, **kw):
+        """List website events."""
+        if not self.env["ir.module.module"].sudo().search([
+            ("name", "=", "event"), ("state", "=", "installed"),
+        ]):
+            return {"error": "Module event is not installed"}
+
+        Event = self.env["event.event"].sudo()
+        domain = []
+        if args.get("upcoming", True):
+            domain.append(("date_end", ">=", datetime.now().isoformat()))
+        if args.get("name"):
+            domain.append(("name", "ilike", args["name"]))
+
+        events = Event.search(domain, limit=20, order="date_begin asc")
+
+        return {
+            "count": len(events),
+            "events": [
+                {
+                    "id": ev.id,
+                    "name": ev.name,
+                    "date_begin": str(ev.date_begin) if ev.date_begin else "",
+                    "date_end": str(ev.date_end) if ev.date_end else "",
+                    "location": ev.address_id.name if ev.address_id else "",
+                    "seats_available": ev.seats_available,
+                    "seats_reserved": ev.seats_reserved,
+                    "seats_used": ev.seats_used,
+                    "state": ev.stage_id.name if ev.stage_id else "",
+                }
+                for ev in events
+            ],
+        }
+
+    # ------------------------------------------------------------------
+    # SYSTEM / UTILITY TOOLS
+    # ------------------------------------------------------------------
+
+    def _tool_installed_modules(self, args, user, permission, **kw):
+        """List installed modules."""
+        Module = self.env["ir.module.module"].sudo()
+        state = args.get("state", "installed")
+        domain = [("state", "=", state)]
+        if args.get("name"):
+            domain.append(("name", "ilike", args["name"]))
+        if args.get("apps_only", True):
+            domain.append(("application", "=", True))
+
+        modules = Module.search(domain, order="name asc")
+        return {
+            "count": len(modules),
+            "modules": [
+                {
+                    "name": m.name,
+                    "shortdesc": m.shortdesc or "",
+                    "state": m.state,
+                    "installed_version": m.installed_version or "",
+                    "application": m.application,
+                }
+                for m in modules
+            ],
+        }
+
+    def _tool_system_info(self, args, user, permission, **kw):
+        """Return system information."""
+        import odoo
+        Users = self.env["res.users"].sudo()
+        active_users = Users.search_count([("active", "=", True), ("share", "=", False)])
+        portal_users = Users.search_count([("active", "=", True), ("share", "=", True)])
+
+        db_name = self.env.cr.dbname
+
+        model_counts = {}
+        for model_name in ("res.partner", "sale.order", "account.move", "project.task", "crm.lead", "product.product"):
+            try:
+                model_counts[model_name] = self.env[model_name].sudo().search_count([])
+            except Exception:
+                pass
+
+        return {
+            "odoo_version": odoo.release.version,
+            "database": db_name,
+            "active_users": active_users,
+            "portal_users": portal_users,
+            "record_counts": model_counts,
+        }
+
+    def _tool_user_activity(self, args, user, permission, **kw):
+        """Show user activity and last login."""
+        Users = self.env["res.users"].sudo()
+        domain = [("active", "=", True), ("share", "=", False)]
+
+        if args.get("user"):
+            domain.append(("name", "ilike", args["user"]))
+        if args.get("active_today"):
+            today_str = date.today().isoformat()
+            domain.append(("login_date", ">=", today_str))
+
+        users = Users.search(domain, limit=30, order="login_date desc")
+
+        today = date.today()
+        return {
+            "count": len(users),
+            "users": [
+                {
+                    "id": u.id,
+                    "name": u.name,
+                    "login": u.login,
+                    "last_login": str(u.login_date) if u.login_date else "never",
+                    "days_since_login": (today - u.login_date.date()).days if u.login_date else None,
+                    "groups": ", ".join(u.groups_id.filtered(lambda g: g.category_id).mapped("full_name")[:5]),
+                }
+                for u in users
             ],
         }

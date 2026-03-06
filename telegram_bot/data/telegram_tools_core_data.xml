@@ -370,4 +370,317 @@
 }</field>
     </record>
 
+    <!-- ==========================================
+         INVOICE WRITE TOOLS
+         ========================================== -->
+
+    <record id="tool_create_invoice" model="telegram.tool">
+        <field name="name">create_invoice</field>
+        <field name="display_name_field">Criar Fatura</field>
+        <field name="description">Cria uma fatura de cliente (out_invoice) ou fornecedor (in_invoice). Informe cliente/fornecedor e linhas com produto e valor.</field>
+        <field name="category">write</field>
+        <field name="method_name">_tool_create_invoice</field>
+        <field name="permission_level">admin</field>
+        <field name="requires_confirmation" eval="True"/>
+        <field name="sequence">36</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "partner": {"type": "string", "description": "Nome ou ID do cliente/fornecedor"},
+        "type": {"type": "string", "enum": ["out_invoice", "in_invoice", "out_refund", "in_refund"], "description": "Tipo (padrao: out_invoice)"},
+        "lines": {"type": "array", "items": {"type": "object", "properties": {"product": {"type": "string"}, "qty": {"type": "number"}, "price": {"type": "number"}, "description": {"type": "string"}}}, "description": "Linhas da fatura"},
+        "ref": {"type": "string", "description": "Referencia externa"}
+    },
+    "required": ["partner", "lines"]
+}</field>
+    </record>
+
+    <record id="tool_register_payment" model="telegram.tool">
+        <field name="name">register_payment</field>
+        <field name="display_name_field">Registrar Pagamento</field>
+        <field name="description">Registra pagamento de uma fatura. Informe o numero da fatura (ex: INV/2026/0001) e o valor. Se nao informar valor, paga o total.</field>
+        <field name="category">write</field>
+        <field name="method_name">_tool_register_payment</field>
+        <field name="permission_level">admin</field>
+        <field name="requires_confirmation" eval="True"/>
+        <field name="sequence">37</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "invoice": {"type": "string", "description": "Numero ou ID da fatura"},
+        "amount": {"type": "number", "description": "Valor (padrao: total da fatura)"},
+        "journal": {"type": "string", "description": "Diario de pagamento (ex: Banco, Caixa)"}
+    },
+    "required": ["invoice"]
+}</field>
+    </record>
+
+    <!-- ==========================================
+         PURCHASE WRITE TOOLS
+         ========================================== -->
+
+    <record id="tool_create_purchase_order" model="telegram.tool">
+        <field name="name">create_purchase_order</field>
+        <field name="display_name_field">Criar Pedido de Compra</field>
+        <field name="description">Cria um pedido de compra (RFQ). Informe o fornecedor e as linhas com produtos e quantidades.</field>
+        <field name="category">write</field>
+        <field name="method_name">_tool_create_purchase_order</field>
+        <field name="permission_level">dev</field>
+        <field name="requires_confirmation" eval="True"/>
+        <field name="sequence">56</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "partner": {"type": "string", "description": "Nome ou ID do fornecedor"},
+        "lines": {"type": "array", "items": {"type": "object", "properties": {"product": {"type": "string"}, "qty": {"type": "number"}, "price": {"type": "number"}}}, "description": "Linhas do pedido"}
+    },
+    "required": ["partner", "lines"]
+}</field>
+    </record>
+
+    <!-- ==========================================
+         PRODUCT TOOLS
+         ========================================== -->
+
+    <record id="tool_find_product" model="telegram.tool">
+        <field name="name">find_product</field>
+        <field name="display_name_field">Buscar Produto</field>
+        <field name="description">Busca produtos por nome, referencia interna ou codigo de barras. Retorna dados completos incluindo preco, estoque e categoria.</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_find_product</field>
+        <field name="permission_level">freela</field>
+        <field name="sequence">58</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "query": {"type": "string", "description": "Nome, referencia ou codigo de barras"},
+        "category": {"type": "string", "description": "Filtrar por categoria"},
+        "type": {"type": "string", "enum": ["consu", "service", "product"], "description": "Tipo: consu=consumivel, service=servico, product=estocavel"},
+        "limit": {"type": "integer", "description": "Limite (padrao: 10)"}
+    },
+    "required": ["query"]
+}</field>
+    </record>
+
+    <record id="tool_create_product" model="telegram.tool">
+        <field name="name">create_product</field>
+        <field name="display_name_field">Criar Produto</field>
+        <field name="description">Cria um produto no Odoo. Informe nome, tipo, preco de venda e custo.</field>
+        <field name="category">write</field>
+        <field name="method_name">_tool_create_product</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">59</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "name": {"type": "string", "description": "Nome do produto"},
+        "type": {"type": "string", "enum": ["consu", "service", "product"], "description": "Tipo (padrao: consu)"},
+        "list_price": {"type": "number", "description": "Preco de venda"},
+        "standard_price": {"type": "number", "description": "Custo"},
+        "default_code": {"type": "string", "description": "Referencia interna"},
+        "barcode": {"type": "string", "description": "Codigo de barras"},
+        "description": {"type": "string"}
+    },
+    "required": ["name"]
+}</field>
+    </record>
+
+    <!-- ==========================================
+         HR WRITE TOOLS
+         ========================================== -->
+
+    <record id="tool_create_expense" model="telegram.tool">
+        <field name="name">create_expense</field>
+        <field name="display_name_field">Criar Despesa</field>
+        <field name="description">Cria uma despesa. Informe descricao, valor e data. A despesa fica em rascunho para aprovacao.</field>
+        <field name="category">write</field>
+        <field name="method_name">_tool_create_expense</field>
+        <field name="permission_level">freela</field>
+        <field name="sequence">76</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "name": {"type": "string", "description": "Descricao da despesa"},
+        "amount": {"type": "number", "description": "Valor total"},
+        "date": {"type": "string", "description": "Data (YYYY-MM-DD, padrao: hoje)"},
+        "product": {"type": "string", "description": "Categoria/produto da despesa (ex: Refeicao, Transporte)"}
+    },
+    "required": ["name", "amount"]
+}</field>
+    </record>
+
+    <!-- ==========================================
+         DISCUSS / MESSAGING TOOLS
+         ========================================== -->
+
+    <record id="tool_send_message" model="telegram.tool">
+        <field name="name">send_message</field>
+        <field name="display_name_field">Enviar Mensagem</field>
+        <field name="description">Envia uma mensagem interna para um ou mais usuarios no Odoo Discuss. Util para comunicacao interna rapida.</field>
+        <field name="category">write</field>
+        <field name="method_name">_tool_send_message</field>
+        <field name="permission_level">freela</field>
+        <field name="sequence">80</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "to": {"type": "array", "items": {"type": "string"}, "description": "Nomes ou emails dos destinatarios"},
+        "body": {"type": "string", "description": "Corpo da mensagem"},
+        "subject": {"type": "string", "description": "Assunto (opcional)"}
+    },
+    "required": ["to", "body"]
+}</field>
+    </record>
+
+    <!-- ==========================================
+         REPORT / ANALYTICS TOOLS
+         ========================================== -->
+
+    <record id="tool_sales_by_product" model="telegram.tool">
+        <field name="name">sales_by_product</field>
+        <field name="display_name_field">Vendas por Produto</field>
+        <field name="description">Retorna ranking de produtos mais vendidos por quantidade ou valor. Filtra por periodo. Util para "quais os produtos mais vendidos?", "top 10 produtos do mes".</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_sales_by_product</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">32</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "period": {"type": "string", "enum": ["week", "month", "quarter", "year"], "description": "Periodo (padrao: month)"},
+        "limit": {"type": "integer", "description": "Top N produtos (padrao: 10)"},
+        "order_by": {"type": "string", "enum": ["qty", "revenue"], "description": "Ordenar por quantidade ou receita (padrao: revenue)"}
+    }
+}</field>
+    </record>
+
+    <record id="tool_sales_by_salesperson" model="telegram.tool">
+        <field name="name">sales_by_salesperson</field>
+        <field name="display_name_field">Vendas por Vendedor</field>
+        <field name="description">Retorna ranking de vendedores por valor total de vendas. Filtra por periodo. Util para "qual vendedor vendeu mais?", "ranking de vendedores".</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_sales_by_salesperson</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">33</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "period": {"type": "string", "enum": ["week", "month", "quarter", "year"], "description": "Periodo (padrao: month)"},
+        "limit": {"type": "integer", "description": "Top N vendedores (padrao: 10)"}
+    }
+}</field>
+    </record>
+
+    <record id="tool_overdue_invoices" model="telegram.tool">
+        <field name="name">overdue_invoices</field>
+        <field name="display_name_field">Faturas em Atraso</field>
+        <field name="description">Lista faturas em atraso (vencidas e nao pagas). Mostra cliente, valor, dias de atraso. Util para "quem esta devendo?", "faturas vencidas".</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_overdue_invoices</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">38</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "days_overdue": {"type": "integer", "description": "Minimo de dias em atraso (padrao: 1)"},
+        "limit": {"type": "integer", "description": "Limite (padrao: 20)"}
+    }
+}</field>
+    </record>
+
+    <!-- ==========================================
+         RECRUITMENT TOOLS
+         ========================================== -->
+
+    <record id="tool_recruitment" model="telegram.tool">
+        <field name="name">recruitment</field>
+        <field name="display_name_field">Recrutamento</field>
+        <field name="description">Lista vagas abertas e candidatos. Filtra por departamento ou cargo. Util para "quantas vagas abertas?", "candidatos para [cargo]".</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_recruitment</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">66</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "department": {"type": "string", "description": "Filtrar por departamento"},
+        "job": {"type": "string", "description": "Filtrar por cargo"}
+    }
+}</field>
+    </record>
+
+    <!-- ==========================================
+         WEBSITE / EVENTS TOOLS
+         ========================================== -->
+
+    <record id="tool_events" model="telegram.tool">
+        <field name="name">events</field>
+        <field name="display_name_field">Eventos</field>
+        <field name="description">Lista eventos do website. Mostra proximos eventos, participantes inscritos e vagas disponiveis. Util para "quais os proximos eventos?", "quantos inscritos no evento X?".</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_events</field>
+        <field name="permission_level">freela</field>
+        <field name="sequence">85</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "upcoming": {"type": "boolean", "description": "Apenas eventos futuros (padrao: true)"},
+        "name": {"type": "string", "description": "Filtrar por nome do evento"}
+    }
+}</field>
+    </record>
+
+    <!-- ==========================================
+         SYSTEM / UTILITY TOOLS
+         ========================================== -->
+
+    <record id="tool_installed_modules" model="telegram.tool">
+        <field name="name">installed_modules</field>
+        <field name="display_name_field">Modulos Instalados</field>
+        <field name="description">Lista modulos instalados no Odoo. Filtra por nome ou status. Util para "quais modulos estao instalados?", "o modulo X esta instalado?".</field>
+        <field name="category">system</field>
+        <field name="method_name">_tool_installed_modules</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">90</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "name": {"type": "string", "description": "Filtrar por nome do modulo"},
+        "state": {"type": "string", "enum": ["installed", "uninstalled", "to upgrade"], "description": "Estado (padrao: installed)"},
+        "apps_only": {"type": "boolean", "description": "Apenas aplicacoes (padrao: true)"}
+    }
+}</field>
+    </record>
+
+    <record id="tool_system_info" model="telegram.tool">
+        <field name="name">system_info</field>
+        <field name="display_name_field">Info do Sistema</field>
+        <field name="description">Retorna informacoes do sistema Odoo: versao, banco de dados, numero de usuarios, registros por modelo principal. Util para "qual a versao do Odoo?", "quantos usuarios ativos?".</field>
+        <field name="category">system</field>
+        <field name="method_name">_tool_system_info</field>
+        <field name="permission_level">admin</field>
+        <field name="sequence">91</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {}
+}</field>
+    </record>
+
+    <record id="tool_user_activity" model="telegram.tool">
+        <field name="name">user_activity</field>
+        <field name="display_name_field">Atividade de Usuarios</field>
+        <field name="description">Mostra usuarios ativos, ultimo login, e atividades pendentes. Util para "quem esta online?", "quando o usuario X acessou?".</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_user_activity</field>
+        <field name="permission_level">admin</field>
+        <field name="sequence">92</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "user": {"type": "string", "description": "Filtrar por nome do usuario"},
+        "active_today": {"type": "boolean", "description": "Apenas usuarios que acessaram hoje"}
+    }
+}</field>
+    </record>
+
 </odoo>
