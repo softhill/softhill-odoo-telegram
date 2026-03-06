@@ -7,15 +7,15 @@
             <list create="0" edit="0"
                   decoration-muted="direction == 'out'"
                   decoration-danger="error">
-                <field name="create_date" string="Data"/>
+                <field name="create_date" string="Date"/>
                 <field name="user_id"/>
                 <field name="direction" widget="badge"/>
-                <field name="text" string="Mensagem" widget="char" limit="80"/>
+                <field name="text" string="Message" widget="char" limit="80"/>
                 <field name="response" widget="char" limit="80" optional="show"/>
                 <field name="ai_model" optional="hide"/>
-                <field name="processing_time" string="Tempo" widget="float" optional="show"/>
+                <field name="processing_time" string="Time" widget="float" optional="show"/>
                 <field name="tokens_total" optional="show"/>
-                <field name="estimated_cost" string="Custo $" optional="show"/>
+                <field name="estimated_cost" string="Cost $" optional="show"/>
                 <field name="tool_count" optional="hide"/>
                 <field name="tokens_in" optional="hide"/>
                 <field name="tokens_out" optional="hide"/>
@@ -31,7 +31,7 @@
             <form create="0">
                 <sheet>
                     <group>
-                        <group string="Mensagem">
+                        <group string="Message">
                             <field name="user_id"/>
                             <field name="direction"/>
                             <field name="create_date"/>
@@ -48,16 +48,16 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Texto">
+                        <page string="Text">
                             <field name="text" nolabel="1"/>
                         </page>
-                        <page string="Resposta">
+                        <page string="Response">
                             <field name="response" nolabel="1"/>
                         </page>
                         <page string="Tool Calls" invisible="not tool_calls">
                             <field name="tool_calls" nolabel="1" widget="ace" options="{'mode': 'json'}"/>
                         </page>
-                        <page string="Erro" invisible="not error">
+                        <page string="Error" invisible="not error">
                             <field name="error" nolabel="1"/>
                         </page>
                     </notebook>
@@ -74,32 +74,32 @@
                 <field name="text"/>
                 <field name="user_id"/>
                 <field name="ai_model"/>
-                <filter name="today" string="Hoje" domain="[('create_date','&gt;=', (context_today()).strftime('%Y-%m-%d'))]"/>
-                <filter name="this_week" string="Esta Semana" domain="[('create_date','&gt;=', (context_today() - datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]"/>
-                <filter name="this_month" string="Este Mes" domain="[('create_date','&gt;=', context_today().strftime('%Y-%m-01'))]"/>
+                <filter name="today" string="Today" domain="[('create_date','&gt;=', (context_today()).strftime('%Y-%m-%d'))]"/>
+                <filter name="this_week" string="This Week" domain="[('create_date','&gt;=', (context_today() - datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]"/>
+                <filter name="this_month" string="This Month" domain="[('create_date','&gt;=', context_today().strftime('%Y-%m-01'))]"/>
                 <separator/>
-                <filter name="errors" string="Com Erro" domain="[('has_error','=',True)]"/>
-                <filter name="with_tools" string="Com Tool Calls" domain="[('tool_calls','!=',False)]"/>
-                <filter name="high_cost" string="Alto Custo" domain="[('estimated_cost', '&gt;', 0.01)]"/>
-                <filter name="slow" string="Lentas (&gt;10s)" domain="[('processing_time', '&gt;', 10)]"/>
-                <group expand="0" string="Agrupar">
-                    <filter name="group_user" string="Usuario" context="{'group_by': 'user_id'}"/>
-                    <filter name="group_model" string="Modelo AI" context="{'group_by': 'ai_model'}"/>
-                    <filter name="group_day" string="Dia" context="{'group_by': 'create_date:day'}"/>
-                    <filter name="group_week" string="Semana" context="{'group_by': 'create_date:week'}"/>
-                    <filter name="group_month" string="Mes" context="{'group_by': 'create_date:month'}"/>
+                <filter name="errors" string="With Errors" domain="[('has_error','=',True)]"/>
+                <filter name="with_tools" string="With Tool Calls" domain="[('tool_calls','!=',False)]"/>
+                <filter name="high_cost" string="High Cost" domain="[('estimated_cost', '&gt;', 0.01)]"/>
+                <filter name="slow" string="Slow (&gt;10s)" domain="[('processing_time', '&gt;', 10)]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_user" string="User" context="{'group_by': 'user_id'}"/>
+                    <filter name="group_model" string="AI Model" context="{'group_by': 'ai_model'}"/>
+                    <filter name="group_day" string="Day" context="{'group_by': 'create_date:day'}"/>
+                    <filter name="group_week" string="Week" context="{'group_by': 'create_date:week'}"/>
+                    <filter name="group_month" string="Month" context="{'group_by': 'create_date:month'}"/>
                 </group>
             </search>
         </field>
     </record>
 
     <record id="action_telegram_message" model="ir.actions.act_window">
-        <field name="name">Mensagens</field>
+        <field name="name">Messages</field>
         <field name="res_model">telegram.message</field>
         <field name="view_mode">list,form</field>
     </record>
 
-    <menuitem id="menu_telegram_messages" name="Mensagens"
+    <menuitem id="menu_telegram_messages" name="Messages"
               parent="telegram_base.menu_telegram_root"
               action="action_telegram_message"
               sequence="20"/>

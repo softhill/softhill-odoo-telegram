@@ -2,7 +2,7 @@
 <odoo>
     <!-- Server action to set webhook -->
     <record id="action_set_webhook" model="ir.actions.server">
-        <field name="name">Configurar Webhook</field>
+        <field name="name">Set Webhook</field>
         <field name="model_id" ref="base.model_ir_config_parameter"/>
         <field name="state">code</field>
         <field name="code">
@@ -15,7 +15,7 @@ if result:
         'tag': 'display_notification',
         'params': {
             'title': 'Webhook',
-            'message': f'Webhook configurado: {webhook_url}',
+            'message': f'Webhook configured: {webhook_url}',
             'type': 'success',
         },
     }
@@ -24,8 +24,8 @@ else:
         'type': 'ir.actions.client',
         'tag': 'display_notification',
         'params': {
-            'title': 'Erro',
-            'message': 'Falha ao configurar webhook. Verifique o token.',
+            'title': 'Error',
+            'message': 'Failed to set webhook. Check the bot token.',
             'type': 'danger',
         },
     }
@@ -35,22 +35,22 @@ else:
 
     <!-- Server action to check webhook status -->
     <record id="action_check_webhook" model="ir.actions.server">
-        <field name="name">Status do Webhook</field>
+        <field name="name">Webhook Status</field>
         <field name="model_id" ref="base.model_ir_config_parameter"/>
         <field name="state">code</field>
         <field name="code">
 info = env['telegram.bot'].get_webhook_info()
-url = info.get('url', 'Nao configurado')
+url = info.get('url', 'Not configured')
 pending = info.get('pending_update_count', 0)
 last_error = info.get('last_error_message', '')
-msg = f"URL: {url}\nUpdates pendentes: {pending}"
+msg = f"URL: {url}\nPending updates: {pending}"
 if last_error:
-    msg += f"\nUltimo erro: {last_error}"
+    msg += f"\nLast error: {last_error}"
 action = {
     'type': 'ir.actions.client',
     'tag': 'display_notification',
     'params': {
-        'title': 'Status do Webhook',
+        'title': 'Webhook Status',
         'message': msg,
         'type': 'info',
         'sticky': True,
@@ -60,14 +60,14 @@ action = {
         <field name="groups_id" eval="[(4, ref('telegram_base.group_telegram_admin'))]"/>
     </record>
 
-    <menuitem id="menu_telegram_config" name="Configuracao"
+    <menuitem id="menu_telegram_config" name="Configuration"
               parent="telegram_base.menu_telegram_root"
               sequence="90"/>
-    <menuitem id="menu_telegram_set_webhook" name="Configurar Webhook"
+    <menuitem id="menu_telegram_set_webhook" name="Set Webhook"
               parent="menu_telegram_config"
               action="action_set_webhook"
               sequence="10"/>
-    <menuitem id="menu_telegram_check_webhook" name="Status do Webhook"
+    <menuitem id="menu_telegram_check_webhook" name="Webhook Status"
               parent="menu_telegram_config"
               action="action_check_webhook"
               sequence="20"/>

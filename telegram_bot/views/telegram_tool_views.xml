@@ -10,10 +10,12 @@
                 <field name="name"/>
                 <field name="display_name_field" string="Label"/>
                 <field name="category" widget="badge"/>
-                <field name="permission_level"/>
+                <field name="allowed_profile_ids" widget="many2many_tags"
+                       options="{'color_field': 'color'}"/>
+                <field name="permission_level" optional="hide"/>
                 <field name="requires_confirmation"/>
                 <field name="active"/>
-                <field name="usage_count" string="Usos (30d)"/>
+                <field name="usage_count" string="Uses (30d)"/>
             </list>
         </field>
     </record>
@@ -25,24 +27,27 @@
             <form>
                 <sheet>
                     <div class="oe_title">
-                        <h1><field name="display_name_field" placeholder="Nome de exibicao"/></h1>
+                        <h1><field name="display_name_field" placeholder="Display name"/></h1>
                     </div>
                     <group>
-                        <group string="Configuracao">
+                        <group string="Configuration">
                             <field name="name"/>
                             <field name="method_name"/>
                             <field name="category"/>
                             <field name="sequence"/>
                             <field name="active"/>
                         </group>
-                        <group string="Permissoes">
-                            <field name="permission_level"/>
+                        <group string="Permissions">
+                            <field name="allowed_profile_ids" widget="many2many_tags"
+                                   options="{'color_field': 'color'}"/>
+                            <field name="permission_level"
+                                   invisible="allowed_profile_ids"/>
                             <field name="requires_confirmation"/>
                             <field name="usage_count"/>
                         </group>
                     </group>
                     <notebook>
-                        <page string="Descricao">
+                        <page string="Description">
                             <field name="description" nolabel="1"/>
                         </page>
                         <page string="Input Schema (JSON)">
@@ -61,26 +66,27 @@
             <search>
                 <field name="name"/>
                 <field name="description"/>
-                <filter name="active" string="Ativas" domain="[('active','=',True)]"/>
-                <filter name="read" string="Leitura" domain="[('category','=','read')]"/>
-                <filter name="write" string="Escrita" domain="[('category','=','write')]"/>
+                <field name="allowed_profile_ids"/>
+                <filter name="active" string="Active" domain="[('active','=',True)]"/>
+                <filter name="read" string="Read" domain="[('category','=','read')]"/>
+                <filter name="write" string="Write" domain="[('category','=','write')]"/>
                 <filter name="github" string="GitHub" domain="[('category','=','github')]"/>
-                <group expand="0" string="Agrupar">
-                    <filter name="group_category" string="Categoria" context="{'group_by': 'category'}"/>
-                    <filter name="group_perm" string="Permissao" context="{'group_by': 'permission_level'}"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_category" string="Category" context="{'group_by': 'category'}"/>
+                    <filter name="group_perm" string="Permission" context="{'group_by': 'permission_level'}"/>
                 </group>
             </search>
         </field>
     </record>
 
     <record id="action_telegram_tool" model="ir.actions.act_window">
-        <field name="name">Ferramentas</field>
+        <field name="name">Tools</field>
         <field name="res_model">telegram.tool</field>
         <field name="view_mode">list,form</field>
         <field name="context">{'search_default_active': 1}</field>
     </record>
 
-    <menuitem id="menu_telegram_tools" name="Ferramentas"
+    <menuitem id="menu_telegram_tools" name="Tools"
               parent="menu_telegram_config"
               action="action_telegram_tool"
               sequence="30"/>
@@ -126,10 +132,10 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Dados da Acao">
+                        <page string="Action Data">
                             <field name="action_data" nolabel="1" widget="ace" options="{'mode': 'json'}"/>
                         </page>
-                        <page string="Resultado" invisible="not result">
+                        <page string="Result" invisible="not result">
                             <field name="result" nolabel="1" widget="ace" options="{'mode': 'json'}"/>
                         </page>
                     </notebook>
@@ -139,12 +145,12 @@
     </record>
 
     <record id="action_telegram_pending_action" model="ir.actions.act_window">
-        <field name="name">Acoes Pendentes</field>
+        <field name="name">Pending Actions</field>
         <field name="res_model">telegram.pending_action</field>
         <field name="view_mode">list,form</field>
     </record>
 
-    <menuitem id="menu_telegram_pending_actions" name="Acoes Pendentes"
+    <menuitem id="menu_telegram_pending_actions" name="Pending Actions"
               parent="menu_telegram_config"
               action="action_telegram_pending_action"
               sequence="40"/>

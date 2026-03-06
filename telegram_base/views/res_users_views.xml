@@ -8,17 +8,18 @@
             <xpath expr="//page[@name='preferences']" position="after">
                 <page string="Telegram" name="telegram">
                     <group>
-                        <group string="Vinculação">
+                        <group string="Link">
                             <field name="telegram_id"/>
+                            <field name="telegram_profile_id"/>
                         </group>
                         <group string="API Token">
                             <field name="telegram_api_token"/>
                             <button name="action_generate_telegram_token"
-                                    string="Gerar Token" type="object"
+                                    string="Generate Token" type="object"
                                     class="btn-primary"
                                     invisible="telegram_api_token"/>
                             <button name="action_revoke_telegram_token"
-                                    string="Revogar Token" type="object"
+                                    string="Revoke Token" type="object"
                                     class="btn-danger"
                                     invisible="not telegram_api_token"/>
                         </group>

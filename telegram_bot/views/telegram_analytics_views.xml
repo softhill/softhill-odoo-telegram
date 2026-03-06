@@ -6,7 +6,7 @@
         <field name="name">telegram.message.graph</field>
         <field name="model">telegram.message</field>
         <field name="arch" type="xml">
-            <graph string="Mensagens" type="bar">
+            <graph string="Messages" type="bar">
                 <field name="create_date" interval="day" type="row"/>
                 <field name="tokens_total" type="measure"/>
             </graph>
@@ -18,7 +18,7 @@
         <field name="name">telegram.message.graph.cost</field>
         <field name="model">telegram.message</field>
         <field name="arch" type="xml">
-            <graph string="Custo" type="line">
+            <graph string="Cost" type="line">
                 <field name="create_date" interval="day" type="row"/>
                 <field name="estimated_cost" type="measure"/>
             </graph>
@@ -30,7 +30,7 @@
         <field name="name">telegram.message.pivot</field>
         <field name="model">telegram.message</field>
         <field name="arch" type="xml">
-            <pivot string="Analise de Mensagens">
+            <pivot string="Message Analysis">
                 <field name="user_id" type="row"/>
                 <field name="create_date" interval="month" type="col"/>
                 <field name="tokens_in" type="measure"/>
@@ -53,7 +53,7 @@
 
     <!-- Cost analysis action -->
     <record id="action_telegram_cost" model="ir.actions.act_window">
-        <field name="name">Custos</field>
+        <field name="name">Costs</field>
         <field name="res_model">telegram.message</field>
         <field name="view_mode">pivot,graph,list</field>
         <field name="view_id" ref="view_telegram_message_pivot"/>
@@ -63,11 +63,11 @@
     <menuitem id="menu_telegram_analytics" name="Analytics"
               parent="telegram_base.menu_telegram_root"
               sequence="30"/>
-    <menuitem id="menu_telegram_analytics_messages" name="Mensagens"
+    <menuitem id="menu_telegram_analytics_messages" name="Messages"
               parent="menu_telegram_analytics"
               action="action_telegram_analytics"
               sequence="10"/>
-    <menuitem id="menu_telegram_analytics_cost" name="Custos"
+    <menuitem id="menu_telegram_analytics_cost" name="Costs"
               parent="menu_telegram_analytics"
               action="action_telegram_cost"
               sequence="20"/>

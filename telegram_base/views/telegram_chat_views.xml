@@ -8,10 +8,12 @@
                 <field name="name"/>
                 <field name="telegram_chat_id"/>
                 <field name="chat_type" widget="badge"/>
+                <field name="profile_id" widget="badge"/>
                 <field name="permission_level" widget="badge"
                        decoration-danger="permission_level == 'admin'"
                        decoration-warning="permission_level == 'dev'"
-                       decoration-info="permission_level == 'freela'"/>
+                       decoration-info="permission_level == 'freela'"
+                       optional="hide"/>
                 <field name="project_id" optional="show"/>
             </list>
         </field>
@@ -30,9 +32,11 @@
                             <field name="chat_type"/>
                         </group>
                         <group>
-                            <field name="permission_level"/>
+                            <field name="profile_id"/>
+                            <field name="permission_level"
+                                   invisible="profile_id"/>
                             <field name="project_id"
-                                   invisible="chat_type != 'projeto'"/>
+                                   invisible="chat_type != 'project'"/>
                             <field name="active"/>
                         </group>
                     </group>
@@ -48,19 +52,21 @@
             <search>
                 <field name="name"/>
                 <field name="telegram_chat_id"/>
+                <field name="profile_id"/>
                 <filter name="admin" string="Admin" domain="[('permission_level','=','admin')]"/>
-                <filter name="dev" string="Dev" domain="[('permission_level','=','dev')]"/>
-                <filter name="freela" string="Freela" domain="[('permission_level','=','freela')]"/>
-                <group expand="0" string="Agrupar">
-                    <filter name="group_type" string="Tipo" context="{'group_by': 'chat_type'}"/>
-                    <filter name="group_perm" string="Permissão" context="{'group_by': 'permission_level'}"/>
+                <filter name="dev" string="Manager" domain="[('permission_level','=','dev')]"/>
+                <filter name="freela" string="User" domain="[('permission_level','=','freela')]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_type" string="Type" context="{'group_by': 'chat_type'}"/>
+                    <filter name="group_profile" string="Profile" context="{'group_by': 'profile_id'}"/>
+                    <filter name="group_perm" string="Permission" context="{'group_by': 'permission_level'}"/>
                 </group>
             </search>
         </field>
     </record>
 
     <record id="action_telegram_chat" model="ir.actions.act_window">
-        <field name="name">Chats Telegram</field>
+        <field name="name">Telegram Chats</field>
         <field name="res_model">telegram.chat</field>
         <field name="view_mode">list,form</field>
     </record>

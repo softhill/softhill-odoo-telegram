@@ -7,16 +7,16 @@
         <field name="arch" type="xml">
             <xpath expr="//app[@name='general_settings']" position="after">
                 <app string="Telegram" name="telegram_base">
-                    <block title="Bot Telegram">
-                        <setting string="Bot Token" help="Token do @BotFather">
+                    <block title="Telegram Bot">
+                        <setting string="Bot Token" help="Token from @BotFather">
                             <field name="telegram_bot_token" password="True"/>
                         </setting>
-                        <setting string="Webhook Secret" help="Secret para validar webhooks">
+                        <setting string="Webhook Secret" help="Secret to validate incoming webhooks">
                             <field name="telegram_webhook_secret"/>
                         </setting>
                     </block>
-                    <block title="Inteligência Artificial">
-                        <setting string="Provider" help="Provedor de IA para o chat">
+                    <block title="Artificial Intelligence">
+                        <setting string="Provider" help="AI provider for the chat">
                             <field name="telegram_ai_provider" widget="radio"/>
                         </setting>
                         <setting string="API Key">
@@ -25,15 +25,15 @@
                         <setting string="Base URL">
                             <field name="telegram_ai_base_url"/>
                         </setting>
-                        <setting string="Modelo">
+                        <setting string="Model">
                             <field name="telegram_ai_model"/>
                         </setting>
                     </block>
                     <block title="GitHub">
-                        <setting string="GitHub Token" help="Token para acessar repositorios (escopo: repo:read)">
+                        <setting string="GitHub Token" help="Token to access repositories (scope: repo:read)">
                             <field name="telegram_github_token" password="True"/>
                         </setting>
-                        <setting string="Organizacao" help="Organizacao padrao do GitHub">
+                        <setting string="Organization" help="Default GitHub organization">
                             <field name="telegram_github_org"/>
                         </setting>
                     </block>

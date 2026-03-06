@@ -11,6 +11,7 @@
         "security/telegram_groups.xml",
         "security/ir.model.access.csv",
         "data/telegram_profile_data.xml",
+        "views/telegram_user_profile_views.xml",
         "views/res_users_views.xml",
         "views/telegram_chat_views.xml",
         "views/res_config_settings_views.xml",
