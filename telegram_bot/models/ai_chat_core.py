@@ -898,7 +898,7 @@ class TelegramAIChatCore(models.AbstractModel):
         if args.get("category"):
             domain.append(("categ_id.name", "ilike", args["category"]))
         if args.get("type"):
-            domain.append(("detailed_type", "=", args["type"]))
+            domain.append(("type", "=", args["type"]))
 
         limit = args.get("limit", 10)
         products = Product.search(domain, limit=limit)
@@ -911,7 +911,7 @@ class TelegramAIChatCore(models.AbstractModel):
                     "name": p.name,
                     "default_code": p.default_code or "",
                     "barcode": p.barcode or "",
-                    "type": p.detailed_type,
+                    "type": p.type,
                     "list_price": p.lst_price,
                     "standard_price": p.standard_price,
                     "qty_available": p.qty_available,
@@ -928,7 +928,7 @@ class TelegramAIChatCore(models.AbstractModel):
         Product = self.env["product.product"].sudo()
         vals = {
             "name": args["name"],
-            "detailed_type": args.get("type", "consu"),
+            "type": args.get("type", "consu"),
         }
         if args.get("list_price"):
             vals["lst_price"] = args["list_price"]
@@ -947,7 +947,7 @@ class TelegramAIChatCore(models.AbstractModel):
             "name": product.name,
             "default_code": product.default_code or "",
             "list_price": product.lst_price,
-            "type": product.detailed_type,
+            "type": product.type,
         }
 
     # ------------------------------------------------------------------
