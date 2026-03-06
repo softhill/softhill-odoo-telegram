@@ -5,7 +5,6 @@ from datetime import timedelta
 from odoo import api, fields, models
 
 LINK_CODE_EXPIRY_MINUTES = 10
-LINK_CODE_MAX_ATTEMPTS = 5
 
 
 class ResUsers(models.Model):
@@ -36,12 +35,6 @@ class ResUsers(models.Model):
         copy=False,
         groups="telegram_base.group_telegram_admin",
     )
-    telegram_link_attempts = fields.Integer(
-        string="Link Attempts",
-        default=0,
-        copy=False,
-        groups="telegram_base.group_telegram_admin",
-    )
 
     _sql_constraints = [
         (
@@ -68,7 +61,6 @@ class ResUsers(models.Model):
             "telegram_link_code_expiry": fields.Datetime.now() + timedelta(
                 minutes=LINK_CODE_EXPIRY_MINUTES
             ),
-            "telegram_link_attempts": 0,
         })
         return {
             "type": "ir.actions.client",
@@ -90,12 +82,14 @@ class ResUsers(models.Model):
             "telegram_id": False,
             "telegram_link_code_hash": False,
             "telegram_link_code_expiry": False,
-            "telegram_link_attempts": 0,
         })
 
     @api.model
     def _verify_telegram_link_code(self, code):
         """Verify a link code and return the matching user or error message.
+
+        Searches by SHA-256 hash of the code, so no user enumeration is possible.
+        Security: 1/900,000 chance per guess, 10-min expiry, single-use (cleared on success).
 
         Returns (user_record, None) on success or (None, error_string) on failure.
         """
@@ -107,14 +101,5 @@ class ResUsers(models.Model):
 
         if not user:
             return None, "Invalid or expired code. Generate a new one from your Odoo profile."
-
-        user.telegram_link_attempts += 1
-        if user.telegram_link_attempts >= LINK_CODE_MAX_ATTEMPTS:
-            user.write({
-                "telegram_link_code_hash": False,
-                "telegram_link_code_expiry": False,
-                "telegram_link_attempts": 0,
-            })
-            return None, "Too many failed attempts. Generate a new code from Odoo."
 
         return user, None

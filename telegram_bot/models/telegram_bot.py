@@ -214,7 +214,6 @@ class TelegramBot(models.AbstractModel):
             "telegram_id": telegram_id,
             "telegram_link_code_hash": False,
             "telegram_link_code_expiry": False,
-            "telegram_link_attempts": 0,
         })
         self.send_message(
             chat_id,
