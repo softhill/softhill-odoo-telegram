@@ -14,23 +14,29 @@ class TelegramChat(models.Model):
     )
     chat_type = fields.Selection(
         [
-            ("dm", "DM"),
-            ("socios", "Sócios"),
-            ("equipe", "Equipe"),
-            ("projeto", "Projeto"),
+            ("dm", "Direct Message"),
+            ("group", "Group"),
+            ("team", "Team"),
+            ("project", "Project"),
         ],
-        default="equipe",
+        default="team",
         required=True,
     )
-    project_id = fields.Many2one("project.project", string="Projeto")
+    project_id = fields.Many2one("project.project", string="Project")
     permission_level = fields.Selection(
         [
             ("admin", "Admin"),
-            ("dev", "Dev"),
-            ("freela", "Freela"),
+            ("dev", "Manager"),
+            ("freela", "User"),
         ],
         default="dev",
         required=True,
+        help="Legacy permission level (used when no profile is set)",
+    )
+    profile_id = fields.Many2one(
+        "telegram.user.profile",
+        string="Chat Profile",
+        help="If set, overrides permission_level for this chat.",
     )
     active = fields.Boolean(default=True)
 

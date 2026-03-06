@@ -1,46 +1,59 @@
 # Odoo Telegram Bot + AI Assistant
 
-**Turn your Odoo into an AI-powered assistant that your team actually wants to use.**
+**Your entire Odoo — accessible from a single Telegram chat.**
 
-Ask questions in plain language on Telegram and get instant answers from your Odoo data — sales reports, overdue invoices, stock levels, project status, CRM pipeline — all without opening a browser. Create quotations, log timesheets, register payments, and manage contacts just by chatting. Works from your phone, your IDE, or any HTTP client.
+No menus, no filters, no training. Just ask.
 
-> *"How much did we sell this month?"* — The bot queries `sale.order`, aggregates by period, and responds in seconds.
+> **You:** How much did we sell this month?
 >
-> *"Create a quote for client X with 10 units of product Y"* — Done. Quotation created, link sent.
->
-> *"Who has overdue invoices?"* — Overdue invoices listed with amounts, due dates, and days overdue.
+> **Bot:** 📊 Sales Summary (March 2026)
+> - 47 confirmed orders
+> - Total: $142,350.00
+> - Top customer: Acme Corp ($28,400)
+> - Avg order value: $3,028.72
 
-No XML-RPC. No middleware. No separate server. The bot runs **inside Odoo** as native modules, using the ORM directly with full security context. Install, configure your Telegram token and AI provider, and your team is up and running.
+> **You:** Create a quote for Acme Corp — 50 units of Premium Widget at $89 each
+>
+> **Bot:** ✅ Quotation S00048 created
+> - Customer: Acme Corp
+> - 50x Premium Widget @ $89.00 = $4,450.00
+> - [Open in Odoo →]
+
+> **You:** Who has overdue invoices?
+>
+> **Bot:** ⚠️ 3 overdue invoices totaling $12,840.00
+> - INV/2026/0087 — Beta Industries — $5,200 (23 days overdue)
+> - INV/2026/0091 — GlobalTech — $4,140 (12 days overdue)
+> - INV/2026/0095 — NovaCorp — $3,500 (5 days overdue)
+
+> **You:** Log 3 hours on the "Website Redesign" task — finished the responsive layout
+>
+> **Bot:** ✅ Timesheet logged
+> - Task: Website Redesign
+> - 3.0 hours on 2026-03-06
+> - Description: Finished the responsive layout
+
+The bot runs **inside Odoo** as native modules. No XML-RPC, no middleware, no separate server — it uses the ORM directly with full security context. Install, configure your Telegram token and AI provider, and your team is running in minutes.
 
 ---
 
-## Why This Bot?
+## Why Use This?
 
-| Traditional approach | This bot |
-|---------------------|----------|
-| Open browser → navigate menus → click filters → read data | Send a message → get the answer |
-| Train users on Odoo's UI for every module | Users already know how to chat |
-| Build custom dashboards for mobile access | Telegram works everywhere |
-| Pay for external BI tools or custom reports | Ask the AI in natural language |
-| Hire developers for every integration | Add tools via Odoo UI — no code |
-| Separate MCP server for IDE integration | Built-in MCP endpoint |
+**For your team:**
 
-### What your team gets
+Your sales reps check pipeline status from their phone between meetings. Your finance team gets overdue invoice reports without opening a browser. Your developers log timesheets from the terminal. Your project managers track deadlines from the same app they use for everything else.
 
-- **Sales team**: Pipeline status, quotation creation, customer lookup — all from Telegram
-- **Finance**: Invoice summaries, overdue reports, payment registration
-- **Operations**: Stock levels, purchase orders, delivery tracking
-- **HR**: Employee info, expense management, recruitment status
-- **Project managers**: Task overview, timesheet logging, deadline tracking
-- **Everyone**: Calendar events, internal messaging, contact search
+Everyone already knows how to chat. Nobody needs to learn Odoo's UI.
 
-### What you get as admin
+**For you as admin:**
 
-- **Full audit trail** of every bot interaction
-- **Cost tracking** per user with token usage analytics
-- **Granular permissions** — control who can read vs. write vs. admin
-- **Dynamic tool registry** — enable/disable tools from the UI, no restart needed
-- **MCP + REST API** — connect your IDE and external tools to Odoo
+- Every interaction is logged with token usage and cost estimation
+- **Configurable user profiles** — not just "admin/user" but "Sales Rep", "External Consultant", "Warehouse Operator", or whatever fits your organization
+- Each tool can be restricted to specific profiles or permission levels
+- Write operations on financial data require explicit confirmation
+- Sensitive models and fields are automatically protected
+- MCP endpoint lets your IDE (Claude Code, Cursor, Windsurf) query Odoo directly
+- REST API for scripts and external integrations
 
 ---
 
@@ -54,20 +67,20 @@ Low-level tools that work with **any** Odoo model. Power users and developers ca
 
 | Tool | What it does | Permission |
 |------|-------------|:----------:|
-| `search_odoo` | Search any model with domain filters | Freela |
-| `count_odoo` | Count records matching criteria | Freela |
-| `read_record` | Read a single record by ID | Freela |
-| `get_fields` | Discover fields of any model | Freela |
-| `create_record` | Create records in any model | Dev |
-| `update_record` | Update existing records | Dev |
-| `execute_action` | Run actions (confirm, validate, post, etc.) | Dev |
+| `search_odoo` | Search any model with domain filters | User |
+| `count_odoo` | Count records matching criteria | User |
+| `read_record` | Read a single record by ID | User |
+| `get_fields` | Discover fields of any model | User |
+| `create_record` | Create records in any model | Manager |
+| `update_record` | Update existing records | Manager |
+| `execute_action` | Run actions (confirm, validate, post, etc.) | Manager |
 | `delete_record` | Delete records (always requires confirmation) | Admin |
-| `post_message` | Post to chatter of any record | Dev |
-| `github_list_repos` | List repos in your GitHub org | Dev |
-| `github_read_file` | Read file contents from repos | Dev |
-| `github_search_code` | Search code across repos | Dev |
-| `github_list_commits` | Recent commits from any repo | Dev |
-| `github_list_prs` | Pull requests (open, closed, all) | Dev |
+| `post_message` | Post to chatter of any record | Manager |
+| `github_list_repos` | List repos in your GitHub org | Manager |
+| `github_read_file` | Read file contents from repos | Manager |
+| `github_search_code` | Search code across repos | Manager |
+| `github_list_commits` | Recent commits from any repo | Manager |
+| `github_list_prs` | Pull requests (open, closed, all) | Manager |
 
 ### Layer 2: Business Tools (30 tools)
 
@@ -77,12 +90,12 @@ High-level tools for common operations. Users don't need to know model names or 
 
 | Tool | What it does | Permission |
 |------|-------------|:----------:|
-| `sales_summary` | Revenue totals, order counts, top customers by period | Freela |
-| `sales_by_product` | Best-selling products ranked by revenue or quantity | Dev |
-| `sales_by_salesperson` | Salesperson ranking by revenue | Dev |
-| `create_quotation` | Create quotation with product lines — resolves names automatically | Dev |
-| `invoicing_summary` | Billed vs. receivable vs. overdue, top debtors | Dev |
-| `overdue_invoices` | List overdue invoices with days past due | Dev |
+| `sales_summary` | Revenue totals, order counts, top customers by period | User |
+| `sales_by_product` | Best-selling products ranked by revenue or quantity | Manager |
+| `sales_by_salesperson` | Salesperson ranking by revenue | Manager |
+| `create_quotation` | Create quotation with product lines — resolves names automatically | Manager |
+| `invoicing_summary` | Billed vs. receivable vs. overdue, top debtors | Manager |
+| `overdue_invoices` | List overdue invoices with days past due | Manager |
 | `create_invoice` | Create customer or vendor invoice | Admin |
 | `register_payment` | Register payment on a posted invoice | Admin |
 
@@ -90,60 +103,60 @@ High-level tools for common operations. Users don't need to know model names or 
 
 | Tool | What it does | Permission |
 |------|-------------|:----------:|
-| `crm_pipeline` | Opportunities by stage, expected revenue, recent leads | Freela |
-| `create_lead` | Create a lead or opportunity | Dev |
+| `crm_pipeline` | Opportunities by stage, expected revenue, recent leads | User |
+| `create_lead` | Create a lead or opportunity | Manager |
 
 #### Projects & Timesheets
 
 | Tool | What it does | Permission |
 |------|-------------|:----------:|
-| `project_summary` | Tasks by stage, overdue tasks, logged hours | Freela |
-| `log_timesheet` | Log worked hours on a task by name | Freela |
-| `create_task` | Create task in a project with assignee and deadline | Dev |
+| `project_summary` | Tasks by stage, overdue tasks, logged hours | User |
+| `log_timesheet` | Log worked hours on a task by name | User |
+| `create_task` | Create task in a project with assignee and deadline | Manager |
 
 #### Contacts
 
 | Tool | What it does | Permission |
 |------|-------------|:----------:|
-| `find_contact` | Search by name, email, phone, VAT — returns full profile | Freela |
-| `create_contact` | Create person or company with address, VAT, etc. | Dev |
+| `find_contact` | Search by name, email, phone, VAT — returns full profile | User |
+| `create_contact` | Create person or company with address, VAT, etc. | Manager |
 
 #### Purchase & Inventory
 
 | Tool | What it does | Permission |
 |------|-------------|:----------:|
-| `purchase_summary` | Purchase totals, pending orders, top suppliers | Dev |
-| `create_purchase_order` | Create RFQ with product lines | Dev |
-| `stock_levels` | Stock by product, low stock alerts, warehouse filter | Dev |
-| `stock_moves` | Recent stock movements (in, out, internal) | Dev |
-| `find_product` | Search products by name, code, or barcode | Freela |
-| `create_product` | Create a new product | Dev |
+| `purchase_summary` | Purchase totals, pending orders, top suppliers | Manager |
+| `create_purchase_order` | Create RFQ with product lines | Manager |
+| `stock_levels` | Stock by product, low stock alerts, warehouse filter | Manager |
+| `stock_moves` | Recent stock movements (in, out, internal) | Manager |
+| `find_product` | Search products by name, code, or barcode | User |
+| `create_product` | Create a new product | Manager |
 
 #### HR & Expenses
 
 | Tool | What it does | Permission |
 |------|-------------|:----------:|
-| `employees` | Employee list with department, job, manager | Dev |
-| `expenses` | Expense overview by status and period | Freela |
-| `create_expense` | Create expense entry for approval | Freela |
-| `recruitment` | Open positions and applicant count | Dev |
+| `employees` | Employee list with department, job, manager | Manager |
+| `expenses` | Expense overview by status and period | User |
+| `create_expense` | Create expense entry for approval | User |
+| `recruitment` | Open positions and applicant count | Manager |
 
 #### Calendar & Messaging
 
 | Tool | What it does | Permission |
 |------|-------------|:----------:|
-| `calendar` | Upcoming events and meetings | Freela |
-| `create_event` | Create calendar event with attendees | Dev |
-| `send_message` | Send internal message via Odoo Discuss | Freela |
+| `calendar` | Upcoming events and meetings | User |
+| `create_event` | Create calendar event with attendees | Manager |
+| `send_message` | Send internal message via Odoo Discuss | User |
 
 #### System
 
 | Tool | What it does | Permission |
 |------|-------------|:----------:|
-| `installed_modules` | List installed Odoo modules and apps | Dev |
+| `installed_modules` | List installed Odoo modules and apps | Manager |
 | `system_info` | Odoo version, database, user count, record stats | Admin |
 | `user_activity` | User last login, activity tracking | Admin |
-| `events` | Website events with registration info | Freela |
+| `events` | Website events with registration info | User |
 
 ---
 
@@ -287,15 +300,34 @@ curl -X POST https://your-odoo.com/mcp \
 
 ## Permission System
 
-Three hierarchical levels — each inherits all permissions from levels below:
+### User Profiles (Configurable)
 
-| Level | Can do | Typical user |
-|-------|--------|-------------|
-| **Freela** | Read data, search contacts, log timesheets, view calendar | Freelancers, interns |
-| **Dev** | Create records, manage CRM, projects, products, purchases | Team members, managers |
-| **Admin** | Financial operations (invoices, payments), system info, user management, delete records | Administrators |
+The bot includes a **configurable user profile system** (`telegram.user.profile`). Profiles define what each type of user can do — and you can create as many as your organization needs:
 
-Write operations on sensitive models require **explicit confirmation** via Telegram inline buttons before execution.
+| Profile | Sequence | Example tools | Your use case |
+|---------|:--------:|---------------|---------------|
+| User | 10 | Calendar, contacts, timesheets | Employees, interns |
+| Manager | 50 | CRM, projects, purchases, products | Team leads, managers |
+| Admin | 100 | Invoicing, payments, system, delete | CFO, IT admin |
+
+**Need more profiles?** Create them in **Telegram > Configuration > User Profiles**:
+
+- "Sales Rep" (sequence 20) — access to CRM + quotations but not invoicing
+- "External Consultant" (sequence 15) — timesheets and their own projects only
+- "Warehouse Operator" (sequence 30) — stock levels and moves only
+- "Finance" (sequence 80) — invoicing tools but not system admin
+
+Each tool can be restricted to specific profiles via the `Allowed Profiles` field. If no profiles are set on a tool, it falls back to the legacy 3-tier permission level (User < Manager < Admin).
+
+Profiles can be auto-assigned via Odoo groups or set explicitly per user.
+
+### Security
+
+- Write operations on financial models require **explicit confirmation** via Telegram buttons
+- Sensitive models (`ir.rule`, `res.users`, `ir.config_parameter`, etc.) are **blocked** from modification
+- Sensitive fields (`password`, `token`, `api_key`) are **automatically stripped** from search results
+- Users at the base level cannot use generic search tools on financial/HR models
+- All interactions are logged in `telegram.message` with full audit trail
 
 ---
 

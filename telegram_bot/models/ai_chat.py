@@ -83,6 +83,27 @@ class TelegramAIChat(models.AbstractModel):
     _description = "Telegram AI Chat Service"
 
     @api.model
+    def _resolve_user_profile(self, user):
+        """Resolve the telegram user profile for a given user.
+
+        Priority: 1) explicit telegram_profile_id on user, 2) profile
+        matched via group_id (highest sequence first), 3) empty recordset
+        (falls back to legacy permission_level).
+        """
+        if user.telegram_profile_id:
+            return user.telegram_profile_id
+
+        Profile = self.env["telegram.user.profile"].sudo()
+        profiles = Profile.search(
+            [("group_id", "!=", False)], order="sequence desc"
+        )
+        user_groups = user.groups_id
+        for profile in profiles:
+            if profile.group_id in user_groups:
+                return profile
+        return Profile.browse()  # empty recordset
+
+    @api.model
     def _get_config(self):
         ICP = self.env["ir.config_parameter"].sudo()
         return {
@@ -94,14 +115,25 @@ class TelegramAIChat(models.AbstractModel):
         }
 
     @api.model
-    def _get_tools(self, permission):
-        """Return OpenAI-format tool definitions from telegram.tool records."""
+    def _get_tools(self, permission, user_profile=None):
+        """Return OpenAI-format tool definitions from telegram.tool records.
+
+        If user_profile is a telegram.user.profile record, tools with
+        allowed_profile_ids are filtered by profile match. Tools without
+        profiles fall back to the legacy permission_level comparison.
+        """
         perm_levels = {"freela": 0, "dev": 1, "admin": 2}
         user_level = perm_levels.get(permission, 0)
 
         tools = self.env["telegram.tool"].sudo().search([("active", "=", True)])
         result = []
         for tool in tools:
+            if tool.allowed_profile_ids and user_profile:
+                # Profile-based access: check if user profile is in allowed list
+                if user_profile in tool.allowed_profile_ids:
+                    result.append(tool.to_openai_format())
+                continue
+            # Legacy fallback: compare permission levels
             tool_level = perm_levels.get(tool.permission_level, 0)
             if user_level >= tool_level:
                 result.append(tool.to_openai_format())
@@ -515,20 +547,23 @@ class TelegramAIChat(models.AbstractModel):
         if not config["api_key"]:
             return "AI not configured. Set it in Settings > Telegram.", [], {}
 
+        user_profile = self._resolve_user_profile(user)
+
         perm_context = {
             "admin": ADMIN_CONTEXT,
             "dev": DEV_CONTEXT,
         }.get(permission, FREELA_CONTEXT)
 
+        profile_name = user_profile.name if user_profile else permission
         system = SYSTEM_PROMPT.format(
-            permission=permission, user_name=user.name
+            permission=profile_name, user_name=user.name
         ) + perm_context
 
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": message},
         ]
-        tools = self._get_tools(permission)
+        tools = self._get_tools(permission, user_profile=user_profile)
         all_tool_calls = []
 
         headers = {

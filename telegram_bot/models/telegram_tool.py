@@ -13,10 +13,10 @@ class TelegramTool(models.Model):
     description = fields.Text(required=True)
     category = fields.Selection(
         [
-            ("read", "Leitura"),
-            ("write", "Escrita"),
+            ("read", "Read"),
+            ("write", "Write"),
             ("github", "GitHub"),
-            ("system", "Sistema"),
+            ("system", "System"),
         ],
         required=True,
         default="read",
@@ -32,13 +32,18 @@ class TelegramTool(models.Model):
     )
     permission_level = fields.Selection(
         [
-            ("freela", "Freela (todos)"),
-            ("dev", "Dev+"),
+            ("freela", "User"),
+            ("dev", "Manager"),
             ("admin", "Admin"),
         ],
         default="freela",
         required=True,
-        help="Minimum permission to use this tool",
+        help="Minimum permission level (used when no profiles are configured)",
+    )
+    allowed_profile_ids = fields.Many2many(
+        "telegram.user.profile",
+        string="Allowed Profiles",
+        help="User profiles that can use this tool. If empty, uses permission_level fallback.",
     )
     requires_confirmation = fields.Boolean(
         default=False,

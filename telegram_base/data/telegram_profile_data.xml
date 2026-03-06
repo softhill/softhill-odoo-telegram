@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="profile_user" model="telegram.user.profile">
+        <field name="name">User</field>
+        <field name="sequence">10</field>
+        <field name="description">Basic access. Can search contacts, view calendar, log timesheets, and use read-only tools.</field>
+        <field name="group_id" ref="group_telegram_freela"/>
+    </record>
+
+    <record id="profile_manager" model="telegram.user.profile">
+        <field name="name">Manager</field>
+        <field name="sequence">50</field>
+        <field name="description">Standard access. Can create records, manage CRM, projects, products, and purchases.</field>
+        <field name="group_id" ref="group_telegram_dev"/>
+    </record>
+
+    <record id="profile_admin" model="telegram.user.profile">
+        <field name="name">Admin</field>
+        <field name="sequence">100</field>
+        <field name="description">Full access. Can create invoices, register payments, manage system settings, and delete records.</field>
+        <field name="group_id" ref="group_telegram_admin"/>
+    </record>
+
+</odoo>

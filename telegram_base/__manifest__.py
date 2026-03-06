@@ -10,6 +10,7 @@
     "data": [
         "security/telegram_groups.xml",
         "security/ir.model.access.csv",
+        "data/telegram_profile_data.xml",
         "views/res_users_views.xml",
         "views/telegram_chat_views.xml",
         "views/res_config_settings_views.xml",

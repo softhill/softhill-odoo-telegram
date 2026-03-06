@@ -16,6 +16,11 @@ class ResUsers(models.Model):
         copy=False,
         groups="telegram_base.group_telegram_admin",
     )
+    telegram_profile_id = fields.Many2one(
+        "telegram.user.profile",
+        string="Telegram Profile",
+        help="User profile for Telegram bot. If not set, determined from Odoo groups.",
+    )
 
     _sql_constraints = [
         (
