@@ -19,6 +19,7 @@ class TelegramMessage(models.Model):
     _order = "create_date desc"
 
     telegram_message_id = fields.Char(index=True)
+    telegram_chat_id = fields.Char(index=True, string="Telegram Chat ID")
     chat_id = fields.Many2one("telegram.chat")
     user_id = fields.Many2one("res.users", index=True)
     direction = fields.Selection(

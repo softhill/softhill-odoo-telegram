@@ -129,6 +129,29 @@ class TelegramAIChat(models.AbstractModel):
             pass
         return {}
 
+    HISTORY_LIMIT = 10  # number of recent message pairs to include
+
+    @api.model
+    def _get_conversation_history(self, chat_id, user):
+        """Load recent conversation history for context."""
+        Message = self.env["telegram.message"].sudo()
+        recent = Message.search(
+            [
+                ("telegram_chat_id", "=", str(chat_id)),
+                ("direction", "=", "in"),
+                ("text", "!=", False),
+                ("response", "!=", False),
+                ("error", "=", False),
+            ],
+            order="create_date desc",
+            limit=self.HISTORY_LIMIT,
+        )
+        history = []
+        for msg in reversed(recent):
+            history.append({"role": "user", "content": msg.text})
+            history.append({"role": "assistant", "content": msg.response})
+        return history
+
     @api.model
     def _get_config(self):
         ICP = self.env["ir.config_parameter"].sudo()
@@ -635,8 +658,14 @@ class TelegramAIChat(models.AbstractModel):
 
         messages = [
             {"role": "system", "content": system},
-            {"role": "user", "content": message},
         ]
+
+        # Load conversation history
+        if chat_id:
+            history = self._get_conversation_history(chat_id, user)
+            messages.extend(history)
+
+        messages.append({"role": "user", "content": message})
         tools = self._get_tools(permission, user_profile=user_profile, chat_rec=chat_rec)
         all_tool_calls = []
 

@@ -412,6 +412,7 @@ class TelegramBot(models.AbstractModel):
         # Log message
         self.env["telegram.message"].sudo().create({
             "user_id": user.id,
+            "telegram_chat_id": str(chat_id),
             "direction": "in",
             "text": text,
             "response": response,
