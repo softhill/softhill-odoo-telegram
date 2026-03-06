@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Server action to set webhook -->
+    <record id="action_set_webhook" model="ir.actions.server">
+        <field name="name">Configurar Webhook</field>
+        <field name="model_id" ref="base.model_ir_config_parameter"/>
+        <field name="state">code</field>
+        <field name="code">
+base_url = env['ir.config_parameter'].sudo().get_param('web.base.url', '')
+webhook_url = f"{base_url}/telegram/webhook"
+result = env['telegram.bot'].set_webhook(webhook_url)
+if result:
+    action = {
+        'type': 'ir.actions.client',
+        'tag': 'display_notification',
+        'params': {
+            'title': 'Webhook',
+            'message': f'Webhook configurado: {webhook_url}',
+            'type': 'success',
+        },
+    }
+else:
+    action = {
+        'type': 'ir.actions.client',
+        'tag': 'display_notification',
+        'params': {
+            'title': 'Erro',
+            'message': 'Falha ao configurar webhook. Verifique o token.',
+            'type': 'danger',
+        },
+    }
+        </field>
+        <field name="groups_id" eval="[(4, ref('telegram_base.group_telegram_admin'))]"/>
+    </record>
+
+    <!-- Server action to check webhook status -->
+    <record id="action_check_webhook" model="ir.actions.server">
+        <field name="name">Status do Webhook</field>
+        <field name="model_id" ref="base.model_ir_config_parameter"/>
+        <field name="state">code</field>
+        <field name="code">
+info = env['telegram.bot'].get_webhook_info()
+url = info.get('url', 'Nao configurado')
+pending = info.get('pending_update_count', 0)
+last_error = info.get('last_error_message', '')
+msg = f"URL: {url}\nUpdates pendentes: {pending}"
+if last_error:
+    msg += f"\nUltimo erro: {last_error}"
+action = {
+    'type': 'ir.actions.client',
+    'tag': 'display_notification',
+    'params': {
+        'title': 'Status do Webhook',
+        'message': msg,
+        'type': 'info',
+        'sticky': True,
+    },
+}
+        </field>
+        <field name="groups_id" eval="[(4, ref('telegram_base.group_telegram_admin'))]"/>
+    </record>
+
+    <menuitem id="menu_telegram_config" name="Configuracao"
+              parent="telegram_base.menu_telegram_root"
+              sequence="90"/>
+    <menuitem id="menu_telegram_set_webhook" name="Configurar Webhook"
+              parent="menu_telegram_config"
+              action="action_set_webhook"
+              sequence="10"/>
+    <menuitem id="menu_telegram_check_webhook" name="Status do Webhook"
+              parent="menu_telegram_config"
+              action="action_check_webhook"
+              sequence="20"/>
+</odoo>

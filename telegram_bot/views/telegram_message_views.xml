@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_telegram_message_list" model="ir.ui.view">
+        <field name="name">telegram.message.list</field>
+        <field name="model">telegram.message</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0"
+                  decoration-muted="direction == 'out'"
+                  decoration-danger="error">
+                <field name="create_date" string="Data"/>
+                <field name="user_id"/>
+                <field name="direction" widget="badge"/>
+                <field name="text" string="Mensagem" widget="char" limit="80"/>
+                <field name="response" widget="char" limit="80" optional="show"/>
+                <field name="ai_model" optional="hide"/>
+                <field name="processing_time" string="Tempo" widget="float" optional="show"/>
+                <field name="tokens_in" optional="hide"/>
+                <field name="tokens_out" optional="hide"/>
+                <field name="error" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_telegram_message_form" model="ir.ui.view">
+        <field name="name">telegram.message.form</field>
+        <field name="model">telegram.message</field>
+        <field name="arch" type="xml">
+            <form create="0">
+                <sheet>
+                    <group>
+                        <group string="Mensagem">
+                            <field name="user_id"/>
+                            <field name="direction"/>
+                            <field name="create_date"/>
+                            <field name="telegram_message_id"/>
+                        </group>
+                        <group string="AI">
+                            <field name="ai_model"/>
+                            <field name="processing_time"/>
+                            <field name="tokens_in"/>
+                            <field name="tokens_out"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Texto">
+                            <field name="text" nolabel="1"/>
+                        </page>
+                        <page string="Resposta">
+                            <field name="response" nolabel="1"/>
+                        </page>
+                        <page string="Tool Calls" invisible="not tool_calls">
+                            <field name="tool_calls" nolabel="1" widget="ace" options="{'mode': 'json'}"/>
+                        </page>
+                        <page string="Erro" invisible="not error">
+                            <field name="error" nolabel="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_telegram_message_search" model="ir.ui.view">
+        <field name="name">telegram.message.search</field>
+        <field name="model">telegram.message</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="text"/>
+                <field name="user_id"/>
+                <filter name="errors" string="Com Erro" domain="[('error','!=',False)]"/>
+                <filter name="with_tools" string="Com Tool Calls" domain="[('tool_calls','!=',False)]"/>
+                <group expand="0" string="Agrupar">
+                    <filter name="group_user" string="Usuário" context="{'group_by': 'user_id'}"/>
+                    <filter name="group_model" string="Modelo AI" context="{'group_by': 'ai_model'}"/>
+                    <filter name="group_day" string="Dia" context="{'group_by': 'create_date:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_telegram_message" model="ir.actions.act_window">
+        <field name="name">Mensagens</field>
+        <field name="res_model">telegram.message</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_telegram_messages" name="Mensagens"
+              parent="telegram_base.menu_telegram_root"
+              action="action_telegram_message"
+              sequence="20"/>
+</odoo>

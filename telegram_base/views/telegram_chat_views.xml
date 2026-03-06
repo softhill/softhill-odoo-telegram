@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_telegram_chat_list" model="ir.ui.view">
+        <field name="name">telegram.chat.list</field>
+        <field name="model">telegram.chat</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="telegram_chat_id"/>
+                <field name="chat_type" widget="badge"/>
+                <field name="permission_level" widget="badge"
+                       decoration-danger="permission_level == 'admin'"
+                       decoration-warning="permission_level == 'dev'"
+                       decoration-info="permission_level == 'freela'"/>
+                <field name="project_id" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_telegram_chat_form" model="ir.ui.view">
+        <field name="name">telegram.chat.form</field>
+        <field name="model">telegram.chat</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="telegram_chat_id"/>
+                            <field name="chat_type"/>
+                        </group>
+                        <group>
+                            <field name="permission_level"/>
+                            <field name="project_id"
+                                   invisible="chat_type != 'projeto'"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_telegram_chat_search" model="ir.ui.view">
+        <field name="name">telegram.chat.search</field>
+        <field name="model">telegram.chat</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="telegram_chat_id"/>
+                <filter name="admin" string="Admin" domain="[('permission_level','=','admin')]"/>
+                <filter name="dev" string="Dev" domain="[('permission_level','=','dev')]"/>
+                <filter name="freela" string="Freela" domain="[('permission_level','=','freela')]"/>
+                <group expand="0" string="Agrupar">
+                    <filter name="group_type" string="Tipo" context="{'group_by': 'chat_type'}"/>
+                    <filter name="group_perm" string="Permissão" context="{'group_by': 'permission_level'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_telegram_chat" model="ir.actions.act_window">
+        <field name="name">Chats Telegram</field>
+        <field name="res_model">telegram.chat</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_telegram_root" name="Telegram"
+              web_icon="telegram_base,static/description/icon.png"
+              sequence="90"/>
+    <menuitem id="menu_telegram_chats" name="Chats"
+              parent="menu_telegram_root"
+              action="action_telegram_chat"
+              sequence="10"/>
+</odoo>

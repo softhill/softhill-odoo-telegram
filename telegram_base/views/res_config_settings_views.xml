@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_telegram" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.telegram</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base_setup.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//app[@name='base_setup']" position="after">
+                <app string="Telegram" name="telegram_base">
+                    <block title="Bot Telegram">
+                        <setting string="Bot Token" help="Token do @BotFather">
+                            <field name="telegram_bot_token" password="True"/>
+                        </setting>
+                        <setting string="Webhook Secret" help="Secret para validar webhooks">
+                            <field name="telegram_webhook_secret"/>
+                        </setting>
+                    </block>
+                    <block title="Inteligência Artificial">
+                        <setting string="Provider" help="Provedor de IA para o chat">
+                            <field name="telegram_ai_provider" widget="radio"/>
+                        </setting>
+                        <setting string="API Key">
+                            <field name="telegram_ai_api_key" password="True"/>
+                        </setting>
+                        <setting string="Base URL">
+                            <field name="telegram_ai_base_url"/>
+                        </setting>
+                        <setting string="Modelo">
+                            <field name="telegram_ai_model"/>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+</odoo>

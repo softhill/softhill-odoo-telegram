@@ -1,0 +1,277 @@
+import json
+import logging
+
+import requests
+
+from odoo import api, fields, models
+
+_logger = logging.getLogger(__name__)
+
+TELEGRAM_API = "https://api.telegram.org/bot{token}/{method}"
+
+
+class TelegramBot(models.AbstractModel):
+    _name = "telegram.bot"
+    _description = "Telegram Bot Service"
+
+    @api.model
+    def _get_token(self):
+        return self.env["ir.config_parameter"].sudo().get_param(
+            "telegram_base.bot_token", ""
+        )
+
+    @api.model
+    def _api_call(self, method, **kwargs):
+        token = self._get_token()
+        if not token:
+            _logger.error("Telegram bot token not configured")
+            return {}
+        url = TELEGRAM_API.format(token=token, method=method)
+        try:
+            resp = requests.post(url, json=kwargs, timeout=30)
+            resp.raise_for_status()
+            return resp.json().get("result", {})
+        except Exception:
+            _logger.exception("Telegram API call failed: %s", method)
+            return {}
+
+    @api.model
+    def send_message(self, chat_id, text, parse_mode="Markdown", **kwargs):
+        return self._api_call(
+            "sendMessage",
+            chat_id=chat_id,
+            text=text,
+            parse_mode=parse_mode,
+            **kwargs,
+        )
+
+    @api.model
+    def send_typing(self, chat_id):
+        return self._api_call("sendChatAction", chat_id=chat_id, action="typing")
+
+    @api.model
+    def set_webhook(self, url):
+        ICP = self.env["ir.config_parameter"].sudo()
+        secret = ICP.get_param("telegram_base.webhook_secret", "")
+        return self._api_call(
+            "setWebhook",
+            url=url,
+            secret_token=secret,
+            allowed_updates=["message", "callback_query"],
+        )
+
+    @api.model
+    def delete_webhook(self):
+        return self._api_call("deleteWebhook")
+
+    @api.model
+    def get_webhook_info(self):
+        token = self._get_token()
+        if not token:
+            return {}
+        url = TELEGRAM_API.format(token=token, method="getWebhookInfo")
+        try:
+            resp = requests.get(url, timeout=10)
+            return resp.json().get("result", {})
+        except Exception:
+            return {}
+
+    @api.model
+    def get_me(self):
+        return self._api_call("getMe")
+
+    # --- Message processing ---
+
+    @api.model
+    def process_update(self, update):
+        """Process a Telegram update (from webhook)."""
+        message = update.get("message")
+        if not message:
+            return
+
+        chat_tg_id = str(message["chat"]["id"])
+        from_user = message.get("from", {})
+        telegram_id = str(from_user.get("id", ""))
+        text = message.get("text", "")
+
+        if not text:
+            return
+
+        # Resolve Odoo user
+        user = self.env["res.users"].sudo().search(
+            [("telegram_id", "=", telegram_id)], limit=1
+        )
+
+        # Handle /start
+        if text.startswith("/start"):
+            self._handle_start(chat_tg_id, user, from_user)
+            return
+
+        # Handle /vincular
+        if text.startswith("/vincular"):
+            self._handle_vincular(chat_tg_id, telegram_id, text, from_user)
+            return
+
+        # Require linked user for all other messages
+        if not user:
+            self.send_message(
+                chat_tg_id,
+                "Voce nao esta vinculado ao Odoo. "
+                "Use /vincular <seu_email> para se conectar.",
+            )
+            return
+
+        # Check group chat: only respond if mentioned or replied
+        if message["chat"]["type"] != "private":
+            if not self._should_respond_in_group(message):
+                return
+
+        # Resolve permission context
+        permission = self._resolve_permission(user, chat_tg_id)
+
+        # Process with AI
+        self.send_typing(chat_tg_id)
+        self._process_ai_message(chat_tg_id, user, text, permission)
+
+    @api.model
+    def _handle_start(self, chat_id, user, from_user):
+        name = from_user.get("first_name", "")
+        if user:
+            self.send_message(
+                chat_id,
+                f"Ola, {user.name}! Sou o assistente da Softhill.\n"
+                "Pode me perguntar qualquer coisa sobre o Odoo.",
+            )
+        else:
+            self.send_message(
+                chat_id,
+                f"Ola, {name}! Sou o assistente da Softhill.\n\n"
+                "Use /vincular <seu_email> para conectar sua conta Odoo.",
+            )
+
+    @api.model
+    def _handle_vincular(self, chat_id, telegram_id, text, from_user):
+        parts = text.split(maxsplit=1)
+        if len(parts) < 2:
+            self.send_message(chat_id, "Uso: /vincular <seu_email_odoo>")
+            return
+
+        email = parts[1].strip()
+
+        # Check if already linked
+        existing = self.env["res.users"].sudo().search(
+            [("telegram_id", "=", telegram_id)], limit=1
+        )
+        if existing:
+            self.send_message(
+                chat_id, f"Voce ja esta vinculado como {existing.name}."
+            )
+            return
+
+        # Find by email
+        user = self.env["res.users"].sudo().search(
+            [("login", "=", email)], limit=1
+        )
+        if not user:
+            self.send_message(
+                chat_id, "Email nao encontrado no Odoo. Verifique e tente novamente."
+            )
+            return
+
+        if user.telegram_id:
+            self.send_message(
+                chat_id,
+                "Este usuario Odoo ja esta vinculado a outra conta Telegram.",
+            )
+            return
+
+        user.sudo().write({"telegram_id": telegram_id})
+        self.send_message(
+            chat_id,
+            f"Vinculado com sucesso! Bem-vindo, {user.name}.\n"
+            "Agora voce pode usar o bot normalmente.",
+        )
+        _logger.info(
+            "Linked Telegram %s to Odoo user %s (%s)",
+            telegram_id, user.id, user.name,
+        )
+
+    @api.model
+    def _should_respond_in_group(self, message):
+        """Only respond in groups when mentioned or replied to."""
+        bot_info = self.get_me()
+        bot_username = bot_info.get("username", "")
+        text = message.get("text", "")
+
+        # Check mention
+        for entity in message.get("entities", []):
+            if entity["type"] == "mention":
+                mention = text[entity["offset"]:entity["offset"] + entity["length"]]
+                if mention == f"@{bot_username}":
+                    return True
+
+        # Check reply
+        reply = message.get("reply_to_message")
+        if reply and reply.get("from", {}).get("id") == bot_info.get("id"):
+            return True
+
+        return False
+
+    @api.model
+    def _resolve_permission(self, user, chat_tg_id):
+        """Resolve effective permission for user + chat."""
+        # User permission from groups
+        if user.has_group("telegram_base.group_telegram_admin"):
+            user_perm = "admin"
+        elif user.has_group("telegram_base.group_telegram_dev"):
+            user_perm = "dev"
+        else:
+            user_perm = "freela"
+
+        # Chat permission
+        chat = self.env["telegram.chat"].sudo().search(
+            [("telegram_chat_id", "=", chat_tg_id)], limit=1
+        )
+        chat_perm = chat.permission_level if chat else user_perm
+
+        # Effective = most restrictive
+        levels = {"freela": 0, "dev": 1, "admin": 2}
+        effective = min(levels.get(user_perm, 0), levels.get(chat_perm, 0))
+        for name, level in levels.items():
+            if level == effective:
+                return name
+        return "freela"
+
+    @api.model
+    def _process_ai_message(self, chat_id, user, text, permission):
+        """Process a message through the AI and send the response."""
+        import time
+        start = time.time()
+
+        ai = self.env["telegram.ai.chat"]
+        try:
+            response, tool_calls, usage = ai.chat(
+                text, user, permission
+            )
+        except Exception as e:
+            _logger.exception("AI chat error")
+            response = "Desculpe, ocorreu um erro ao processar sua mensagem."
+            tool_calls = []
+            usage = {}
+
+        elapsed = time.time() - start
+
+        # Log message
+        self.env["telegram.message"].sudo().create({
+            "user_id": user.id,
+            "direction": "in",
+            "text": text,
+            "response": response,
+            "tool_calls": json.dumps(tool_calls) if tool_calls else False,
+            "processing_time": elapsed,
+            "ai_model": usage.get("model", ""),
+            "tokens_in": usage.get("prompt_tokens", 0),
+            "tokens_out": usage.get("completion_tokens", 0),
+        })
+
+        self.send_message(chat_id, response)

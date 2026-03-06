@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="module_category_telegram" model="ir.module.category">
+        <field name="name">Telegram</field>
+        <field name="sequence">90</field>
+    </record>
+
+    <record id="group_telegram_freela" model="res.groups">
+        <field name="name">Freela</field>
+        <field name="category_id" ref="module_category_telegram"/>
+    </record>
+
+    <record id="group_telegram_dev" model="res.groups">
+        <field name="name">Dev</field>
+        <field name="category_id" ref="module_category_telegram"/>
+        <field name="implied_ids" eval="[(4, ref('group_telegram_freela'))]"/>
+    </record>
+
+    <record id="group_telegram_admin" model="res.groups">
+        <field name="name">Admin</field>
+        <field name="category_id" ref="module_category_telegram"/>
+        <field name="implied_ids" eval="[(4, ref('group_telegram_dev'))]"/>
+    </record>
+</odoo>

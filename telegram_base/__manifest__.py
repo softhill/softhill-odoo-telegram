@@ -1,0 +1,20 @@
+{
+    "name": "Telegram Base",
+    "version": "18.0.1.0.0",
+    "category": "Tools",
+    "summary": "Base module for Telegram integration with Odoo",
+    "author": "Softhill",
+    "website": "https://github.com/softhill/softhill-odoo-telegram",
+    "license": "LGPL-3",
+    "depends": ["base", "base_setup"],
+    "data": [
+        "security/telegram_groups.xml",
+        "security/ir.model.access.csv",
+        "views/res_users_views.xml",
+        "views/telegram_chat_views.xml",
+        "views/res_config_settings_views.xml",
+        "data/telegram_data.xml",
+    ],
+    "installable": True,
+    "application": False,
+}

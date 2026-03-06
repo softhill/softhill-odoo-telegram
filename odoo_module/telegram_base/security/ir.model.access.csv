@@ -1,4 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_telegram_chat_admin,telegram.chat.admin,model_telegram_chat,group_telegram_admin,1,1,1,1
-access_telegram_chat_dev,telegram.chat.dev,model_telegram_chat,group_telegram_dev,1,0,0,0
-access_telegram_chat_freela,telegram.chat.freela,model_telegram_chat,group_telegram_freela,1,0,0,0
