@@ -36,3 +36,12 @@ class ResConfigSettings(models.TransientModel):
         config_parameter="telegram_base.ai_model",
         default="deepseek-chat",
     )
+    telegram_github_token = fields.Char(
+        string="GitHub Token",
+        config_parameter="telegram_base.github_token",
+    )
+    telegram_github_org = fields.Char(
+        string="GitHub Organization",
+        config_parameter="telegram_base.github_org",
+        default="softhill",
+    )

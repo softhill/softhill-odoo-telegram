@@ -14,6 +14,9 @@
                 <field name="response" widget="char" limit="80" optional="show"/>
                 <field name="ai_model" optional="hide"/>
                 <field name="processing_time" string="Tempo" widget="float" optional="show"/>
+                <field name="tokens_total" optional="show"/>
+                <field name="estimated_cost" string="Custo $" optional="show"/>
+                <field name="tool_count" optional="hide"/>
                 <field name="tokens_in" optional="hide"/>
                 <field name="tokens_out" optional="hide"/>
                 <field name="error" optional="hide"/>
@@ -39,6 +42,9 @@
                             <field name="processing_time"/>
                             <field name="tokens_in"/>
                             <field name="tokens_out"/>
+                            <field name="tokens_total"/>
+                            <field name="estimated_cost"/>
+                            <field name="tool_count"/>
                         </group>
                     </group>
                     <notebook>
@@ -67,12 +73,21 @@
             <search>
                 <field name="text"/>
                 <field name="user_id"/>
-                <filter name="errors" string="Com Erro" domain="[('error','!=',False)]"/>
+                <field name="ai_model"/>
+                <filter name="today" string="Hoje" domain="[('create_date','&gt;=', (context_today()).strftime('%Y-%m-%d'))]"/>
+                <filter name="this_week" string="Esta Semana" domain="[('create_date','&gt;=', (context_today() - datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]"/>
+                <filter name="this_month" string="Este Mes" domain="[('create_date','&gt;=', context_today().strftime('%Y-%m-01'))]"/>
+                <separator/>
+                <filter name="errors" string="Com Erro" domain="[('has_error','=',True)]"/>
                 <filter name="with_tools" string="Com Tool Calls" domain="[('tool_calls','!=',False)]"/>
+                <filter name="high_cost" string="Alto Custo" domain="[('estimated_cost', '&gt;', 0.01)]"/>
+                <filter name="slow" string="Lentas (&gt;10s)" domain="[('processing_time', '&gt;', 10)]"/>
                 <group expand="0" string="Agrupar">
-                    <filter name="group_user" string="Usuário" context="{'group_by': 'user_id'}"/>
+                    <filter name="group_user" string="Usuario" context="{'group_by': 'user_id'}"/>
                     <filter name="group_model" string="Modelo AI" context="{'group_by': 'ai_model'}"/>
                     <filter name="group_day" string="Dia" context="{'group_by': 'create_date:day'}"/>
+                    <filter name="group_week" string="Semana" context="{'group_by': 'create_date:week'}"/>
+                    <filter name="group_month" string="Mes" context="{'group_by': 'create_date:month'}"/>
                 </group>
             </search>
         </field>

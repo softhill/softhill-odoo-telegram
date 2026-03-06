@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Graph: Messages per day -->
+    <record id="view_telegram_message_graph" model="ir.ui.view">
+        <field name="name">telegram.message.graph</field>
+        <field name="model">telegram.message</field>
+        <field name="arch" type="xml">
+            <graph string="Mensagens" type="bar">
+                <field name="create_date" interval="day" type="row"/>
+                <field name="tokens_total" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- Graph: Cost per day -->
+    <record id="view_telegram_message_graph_cost" model="ir.ui.view">
+        <field name="name">telegram.message.graph.cost</field>
+        <field name="model">telegram.message</field>
+        <field name="arch" type="xml">
+            <graph string="Custo" type="line">
+                <field name="create_date" interval="day" type="row"/>
+                <field name="estimated_cost" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- Pivot: Full analysis -->
+    <record id="view_telegram_message_pivot" model="ir.ui.view">
+        <field name="name">telegram.message.pivot</field>
+        <field name="model">telegram.message</field>
+        <field name="arch" type="xml">
+            <pivot string="Analise de Mensagens">
+                <field name="user_id" type="row"/>
+                <field name="create_date" interval="month" type="col"/>
+                <field name="tokens_in" type="measure"/>
+                <field name="tokens_out" type="measure"/>
+                <field name="tokens_total" type="measure"/>
+                <field name="estimated_cost" type="measure"/>
+                <field name="processing_time" type="measure"/>
+                <field name="tool_count" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- Analytics action -->
+    <record id="action_telegram_analytics" model="ir.actions.act_window">
+        <field name="name">Analytics</field>
+        <field name="res_model">telegram.message</field>
+        <field name="view_mode">graph,pivot,list</field>
+        <field name="context">{'search_default_this_month': 1}</field>
+    </record>
+
+    <!-- Cost analysis action -->
+    <record id="action_telegram_cost" model="ir.actions.act_window">
+        <field name="name">Custos</field>
+        <field name="res_model">telegram.message</field>
+        <field name="view_mode">pivot,graph,list</field>
+        <field name="view_id" ref="view_telegram_message_pivot"/>
+        <field name="context">{'search_default_this_month': 1}</field>
+    </record>
+
+    <menuitem id="menu_telegram_analytics" name="Analytics"
+              parent="telegram_base.menu_telegram_root"
+              sequence="30"/>
+    <menuitem id="menu_telegram_analytics_messages" name="Mensagens"
+              parent="menu_telegram_analytics"
+              action="action_telegram_analytics"
+              sequence="10"/>
+    <menuitem id="menu_telegram_analytics_cost" name="Custos"
+              parent="menu_telegram_analytics"
+              action="action_telegram_cost"
+              sequence="20"/>
+
+</odoo>

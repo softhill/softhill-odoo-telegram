@@ -1,96 +1,17 @@
-"""MCP (Model Context Protocol) server over SSE.
+"""MCP (Model Context Protocol) server over Streamable HTTP.
 
 Implements the MCP Streamable HTTP transport specification.
-IDEs like Claude Code and Cursor connect via SSE to use Odoo tools.
+IDEs like Claude Code and Cursor connect to use Odoo tools.
+Tools are loaded dynamically from telegram.tool records.
 """
 
 import json
 import logging
-import uuid
 
 from odoo import http
 from odoo.http import request, Response
 
 _logger = logging.getLogger(__name__)
-
-MCP_TOOLS = [
-    {
-        "name": "search_records",
-        "description": (
-            "Search records in any Odoo model. "
-            "Common models: sale.order, purchase.order, res.partner, "
-            "product.product, project.task, account.analytic.line."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "model": {"type": "string", "description": "Odoo model name"},
-                "domain": {"type": "array", "description": "Odoo domain filter"},
-                "fields": {"type": "array", "items": {"type": "string"}},
-                "limit": {"type": "integer", "default": 10},
-                "order": {"type": "string"},
-            },
-            "required": ["model"],
-        },
-    },
-    {
-        "name": "count_records",
-        "description": "Count records in an Odoo model.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "model": {"type": "string"},
-                "domain": {"type": "array"},
-            },
-            "required": ["model"],
-        },
-    },
-    {
-        "name": "read_record",
-        "description": "Read a single record by ID.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "model": {"type": "string"},
-                "record_id": {"type": "integer"},
-                "fields": {"type": "array", "items": {"type": "string"}},
-            },
-            "required": ["model", "record_id"],
-        },
-    },
-    {
-        "name": "list_models",
-        "description": "List available Odoo models. Optionally filter by keyword.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Filter keyword"},
-            },
-        },
-    },
-    {
-        "name": "get_model_fields",
-        "description": "Get field definitions for an Odoo model.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "model": {"type": "string"},
-            },
-            "required": ["model"],
-        },
-    },
-    {
-        "name": "ask_ai",
-        "description": "Ask the AI assistant a question about the Odoo system.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "question": {"type": "string"},
-            },
-            "required": ["question"],
-        },
-    },
-]
 
 
 def _authenticate_mcp():
@@ -107,59 +28,38 @@ def _authenticate_mcp():
     return user
 
 
+def _get_mcp_tools():
+    """Get tool list from telegram.tool model in MCP format."""
+    tools = request.env["telegram.tool"].sudo().search([("active", "=", True)])
+    result = []
+    for tool in tools:
+        try:
+            schema = json.loads(tool.input_schema)
+        except (json.JSONDecodeError, TypeError):
+            schema = {"type": "object", "properties": {}}
+        result.append({
+            "name": tool.name,
+            "description": tool.description,
+            "inputSchema": schema,
+        })
+    return result
+
+
 def _execute_mcp_tool(name, arguments, user):
-    """Execute an MCP tool and return the result."""
+    """Execute an MCP tool via the AI chat service."""
     env = request.env
 
-    if name == "search_records":
-        model = arguments["model"]
-        domain = arguments.get("domain", [])
-        fields_list = arguments.get("fields")
-        limit = arguments.get("limit", 10)
-        order = arguments.get("order", "")
-        records = env[model].search_read(domain, fields_list, limit=limit, order=order)
-        return json.dumps(
-            {"model": model, "count": len(records), "records": records},
-            ensure_ascii=False, default=str,
-        )
+    # Resolve permission
+    if user.has_group("telegram_base.group_telegram_admin"):
+        permission = "admin"
+    elif user.has_group("telegram_base.group_telegram_dev"):
+        permission = "dev"
+    else:
+        permission = "freela"
 
-    elif name == "count_records":
-        model = arguments["model"]
-        domain = arguments.get("domain", [])
-        count = env[model].search_count(domain)
-        return json.dumps({"model": model, "count": count})
-
-    elif name == "read_record":
-        model = arguments["model"]
-        record_id = arguments["record_id"]
-        fields_list = arguments.get("fields")
-        records = env[model].search_read([("id", "=", record_id)], fields_list, limit=1)
-        if not records:
-            return json.dumps({"error": f"{model} #{record_id} not found"})
-        return json.dumps(records[0], ensure_ascii=False, default=str)
-
-    elif name == "list_models":
-        query = arguments.get("query", "")
-        domain = [("model", "ilike", query)] if query else []
-        models = env["ir.model"].search_read(domain, ["model", "name"], order="model")
-        return json.dumps({"models": models}, ensure_ascii=False, default=str)
-
-    elif name == "get_model_fields":
-        model = arguments["model"]
-        Model = env[model]
-        fields_info = Model.fields_get(attributes=["string", "type", "relation"])
-        return json.dumps(
-            {"model": model, "fields": fields_info},
-            ensure_ascii=False, default=str,
-        )
-
-    elif name == "ask_ai":
-        question = arguments["question"]
-        permission = "admin" if user.has_group("telegram_base.group_telegram_admin") else "dev"
-        response, _, _ = env["telegram.ai.chat"].chat(question, user, permission)
-        return response
-
-    return json.dumps({"error": f"Unknown tool: {name}"})
+    ai_chat = env["telegram.ai.chat"]
+    result = ai_chat._execute_tool(name, arguments, user, permission)
+    return result
 
 
 class MCPController(http.Controller):
@@ -210,12 +110,12 @@ class MCPController(http.Controller):
                 },
                 "serverInfo": {
                     "name": "softhill-odoo-mcp",
-                    "version": "1.0.0",
+                    "version": "2.0.0",
                 },
             }
 
         elif method == "tools/list":
-            return {"tools": MCP_TOOLS}
+            return {"tools": _get_mcp_tools()}
 
         elif method == "tools/call":
             tool_name = params.get("name")

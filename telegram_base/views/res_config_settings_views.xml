@@ -29,6 +29,14 @@
                             <field name="telegram_ai_model"/>
                         </setting>
                     </block>
+                    <block title="GitHub">
+                        <setting string="GitHub Token" help="Token para acessar repositorios (escopo: repo:read)">
+                            <field name="telegram_github_token" password="True"/>
+                        </setting>
+                        <setting string="Organizacao" help="Organizacao padrao do GitHub">
+                            <field name="telegram_github_org"/>
+                        </setting>
+                    </block>
                 </app>
             </xpath>
         </field>

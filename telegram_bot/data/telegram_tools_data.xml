@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <!-- READ TOOLS -->
+    <record id="tool_search_odoo" model="telegram.tool">
+        <field name="name">search_odoo</field>
+        <field name="display_name_field">Buscar Registros</field>
+        <field name="description">Busca registros em qualquer modelo Odoo. Modelos comuns: sale.order, purchase.order, res.partner, product.product, stock.picking, account.move, project.task, account.analytic.line (horas). Domain usa formato Odoo: [('field','operator','value')].</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_search_odoo</field>
+        <field name="permission_level">freela</field>
+        <field name="sequence">1</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "model": {"type": "string", "description": "Nome tecnico do modelo Odoo"},
+        "domain": {"type": "array", "description": "Filtros Odoo domain"},
+        "fields": {"type": "array", "items": {"type": "string"}, "description": "Campos a retornar"},
+        "limit": {"type": "integer", "description": "Limite (padrao: 10)"},
+        "order": {"type": "string", "description": "Ordenacao"}
+    },
+    "required": ["model"]
+}</field>
+    </record>
+
+    <record id="tool_count_odoo" model="telegram.tool">
+        <field name="name">count_odoo</field>
+        <field name="display_name_field">Contar Registros</field>
+        <field name="description">Conta registros em um modelo Odoo.</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_count_odoo</field>
+        <field name="permission_level">freela</field>
+        <field name="sequence">2</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "model": {"type": "string"},
+        "domain": {"type": "array"}
+    },
+    "required": ["model"]
+}</field>
+    </record>
+
+    <record id="tool_read_record" model="telegram.tool">
+        <field name="name">read_record</field>
+        <field name="display_name_field">Ler Registro</field>
+        <field name="description">Le um registro por ID.</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_read_record</field>
+        <field name="permission_level">freela</field>
+        <field name="sequence">3</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "model": {"type": "string"},
+        "record_id": {"type": "integer"},
+        "fields": {"type": "array", "items": {"type": "string"}}
+    },
+    "required": ["model", "record_id"]
+}</field>
+    </record>
+
+    <record id="tool_get_fields" model="telegram.tool">
+        <field name="name">get_fields</field>
+        <field name="display_name_field">Campos do Modelo</field>
+        <field name="description">Descobre campos de um modelo Odoo. Use antes de search_odoo se nao souber os campos.</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_get_fields</field>
+        <field name="permission_level">freela</field>
+        <field name="sequence">4</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "model": {"type": "string"}
+    },
+    "required": ["model"]
+}</field>
+    </record>
+
+    <!-- WRITE TOOLS -->
+    <record id="tool_create_record" model="telegram.tool">
+        <field name="name">create_record</field>
+        <field name="display_name_field">Criar Registro</field>
+        <field name="description">Cria um registro em qualquer modelo Odoo. Para campos Many2one, use o ID numerico. Para campos One2many, use formato [[0, 0, {vals}]]. Modelos financeiros (sale.order, purchase.order, account.move) requerem confirmacao.</field>
+        <field name="category">write</field>
+        <field name="method_name">_tool_create_record</field>
+        <field name="permission_level">dev</field>
+        <field name="requires_confirmation" eval="True"/>
+        <field name="sequence">10</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "model": {"type": "string", "description": "Nome tecnico do modelo Odoo"},
+        "values": {"type": "object", "description": "Dicionario de campos e valores"}
+    },
+    "required": ["model", "values"]
+}</field>
+    </record>
+
+    <record id="tool_update_record" model="telegram.tool">
+        <field name="name">update_record</field>
+        <field name="display_name_field">Atualizar Registro</field>
+        <field name="description">Atualiza campos de um registro existente. Para campos Many2one, use o ID numerico. Para campos Many2many, use [[6, 0, [ids]]] para substituir, [[4, id]] para adicionar.</field>
+        <field name="category">write</field>
+        <field name="method_name">_tool_update_record</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">11</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "model": {"type": "string"},
+        "record_id": {"type": "integer"},
+        "values": {"type": "object"}
+    },
+    "required": ["model", "record_id", "values"]
+}</field>
+    </record>
+
+    <record id="tool_execute_action" model="telegram.tool">
+        <field name="name">execute_action</field>
+        <field name="display_name_field">Executar Acao</field>
+        <field name="description">Executa uma acao/metodo em um registro Odoo. Acoes comuns: action_confirm (confirmar pedido), action_done (concluir), action_cancel (cancelar), button_validate (validar picking), action_post (lancar fatura). Sempre requer confirmacao.</field>
+        <field name="category">write</field>
+        <field name="method_name">_tool_execute_action</field>
+        <field name="permission_level">dev</field>
+        <field name="requires_confirmation" eval="True"/>
+        <field name="sequence">12</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "model": {"type": "string"},
+        "record_id": {"type": "integer"},
+        "method": {"type": "string", "description": "Nome do metodo a executar"}
+    },
+    "required": ["model", "record_id", "method"]
+}</field>
+    </record>
+
+    <record id="tool_delete_record" model="telegram.tool">
+        <field name="name">delete_record</field>
+        <field name="display_name_field">Excluir Registro</field>
+        <field name="description">Exclui um registro. Sempre requer confirmacao.</field>
+        <field name="category">write</field>
+        <field name="method_name">_tool_delete_record</field>
+        <field name="permission_level">admin</field>
+        <field name="requires_confirmation" eval="True"/>
+        <field name="sequence">13</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "model": {"type": "string"},
+        "record_id": {"type": "integer"}
+    },
+    "required": ["model", "record_id"]
+}</field>
+    </record>
+
+    <record id="tool_post_message" model="telegram.tool">
+        <field name="name">post_message</field>
+        <field name="display_name_field">Postar Mensagem</field>
+        <field name="description">Posta uma mensagem no chatter de um registro Odoo. Util para comunicacao interna, notas e notificacoes.</field>
+        <field name="category">write</field>
+        <field name="method_name">_tool_post_message</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">14</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "model": {"type": "string"},
+        "record_id": {"type": "integer"},
+        "body": {"type": "string", "description": "Corpo da mensagem"},
+        "message_type": {"type": "string", "enum": ["comment", "note"], "description": "comment = notifica seguidores, note = nota interna"}
+    },
+    "required": ["model", "record_id", "body"]
+}</field>
+    </record>
+
+    <!-- GITHUB TOOLS -->
+    <record id="tool_github_list_repos" model="telegram.tool">
+        <field name="name">github_list_repos</field>
+        <field name="display_name_field">Listar Repos</field>
+        <field name="description">Lista repositorios de uma organizacao GitHub.</field>
+        <field name="category">github</field>
+        <field name="method_name">_tool_github_list_repos</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">20</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "org": {"type": "string", "description": "Organizacao (padrao: configurado no sistema)"},
+        "type": {"type": "string", "enum": ["all", "public", "private"]}
+    }
+}</field>
+    </record>
+
+    <record id="tool_github_read_file" model="telegram.tool">
+        <field name="name">github_read_file</field>
+        <field name="display_name_field">Ler Arquivo</field>
+        <field name="description">Le o conteudo de um arquivo de um repositorio GitHub.</field>
+        <field name="category">github</field>
+        <field name="method_name">_tool_github_read_file</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">21</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "repo": {"type": "string", "description": "Nome do repo (org/repo ou apenas repo)"},
+        "path": {"type": "string", "description": "Caminho do arquivo no repo"},
+        "ref": {"type": "string", "description": "Branch ou commit (padrao: main)"}
+    },
+    "required": ["repo", "path"]
+}</field>
+    </record>
+
+    <record id="tool_github_search_code" model="telegram.tool">
+        <field name="name">github_search_code</field>
+        <field name="display_name_field">Buscar Codigo</field>
+        <field name="description">Busca codigo em repositorios GitHub da organizacao.</field>
+        <field name="category">github</field>
+        <field name="method_name">_tool_github_search_code</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">22</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "query": {"type": "string", "description": "Texto a buscar no codigo"},
+        "repo": {"type": "string", "description": "Filtrar por repo especifico"},
+        "extension": {"type": "string", "description": "Filtrar por extensao (py, js, xml)"}
+    },
+    "required": ["query"]
+}</field>
+    </record>
+
+    <record id="tool_github_list_commits" model="telegram.tool">
+        <field name="name">github_list_commits</field>
+        <field name="display_name_field">Listar Commits</field>
+        <field name="description">Lista commits recentes de um repositorio.</field>
+        <field name="category">github</field>
+        <field name="method_name">_tool_github_list_commits</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">23</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "repo": {"type": "string"},
+        "branch": {"type": "string", "description": "Branch (padrao: main)"},
+        "limit": {"type": "integer", "description": "Quantidade (padrao: 10)"}
+    },
+    "required": ["repo"]
+}</field>
+    </record>
+
+    <record id="tool_github_list_prs" model="telegram.tool">
+        <field name="name">github_list_prs</field>
+        <field name="display_name_field">Listar PRs</field>
+        <field name="description">Lista pull requests de um repositorio.</field>
+        <field name="category">github</field>
+        <field name="method_name">_tool_github_list_prs</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">24</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "repo": {"type": "string"},
+        "state": {"type": "string", "enum": ["open", "closed", "all"], "description": "Estado (padrao: open)"}
+    },
+    "required": ["repo"]
+}</field>
+    </record>
+
+</odoo>

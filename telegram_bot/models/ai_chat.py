@@ -1,38 +1,62 @@
+import base64
 import json
 import logging
 
 import requests
 
-from odoo import api, models
+from odoo import api, fields, models
 
 _logger = logging.getLogger(__name__)
 
 MAX_TOOL_ROUNDS = 5
 
 SYSTEM_PROMPT = """Voce e o assistente operacional da Softhill, integrado ao Odoo.
-Voce tem acesso direto ao sistema e pode consultar dados de vendas, compras, contatos,
-projetos, horas, estoque e qualquer outro modulo do Odoo.
+Voce tem acesso direto ao sistema e pode consultar e modificar dados de vendas, compras,
+contatos, projetos, horas, estoque e qualquer outro modulo do Odoo.
+Tambem pode consultar repositorios GitHub da organizacao.
 
 Responda de forma objetiva em portugues. Use os dados reais do sistema.
 Quando o usuario pedir dados, use as ferramentas disponiveis para consultar o Odoo.
+Quando pedir para criar ou modificar algo, use as ferramentas de escrita.
 
 Permissao do usuario: {permission}
 Nome do usuario: {user_name}
 """
 
 ADMIN_CONTEXT = """
-Voce tem acesso admin completo. Pode consultar dados de qualquer usuario,
-aprovar mudancas, e executar acoes administrativas.
+Voce tem acesso admin completo. Pode consultar e modificar dados de qualquer usuario,
+criar pedidos, faturas, contatos, e executar acoes administrativas.
 """
 
 DEV_CONTEXT = """
-Voce tem acesso dev. Pode consultar projetos, tarefas e horas.
-Nao pode aprovar mudancas ou ver dados de outros usuarios.
+Voce tem acesso dev. Pode consultar e criar registros, mas acoes destrutivas
+requerem confirmacao. Pode acessar repositorios GitHub.
 """
 
 FREELA_CONTEXT = """
 Voce tem acesso freela. Pode ver apenas seus proprios projetos, tarefas e horas.
+Nao pode modificar registros.
 """
+
+# Models that always require confirmation before write
+CONFIRMATION_MODELS = {
+    "sale.order", "purchase.order", "account.move",
+    "stock.picking", "account.payment",
+}
+
+# Whitelisted methods for execute_action
+ALLOWED_METHODS = {
+    "action_confirm", "action_done", "action_cancel",
+    "button_validate", "action_post", "action_draft",
+    "action_assign", "action_set_done", "action_approve",
+    "action_refuse", "action_reset",
+}
+
+# Models that should never be modified via bot
+BLOCKED_MODELS = {
+    "ir.model", "ir.model.access", "ir.rule", "ir.module.module",
+    "ir.config_parameter", "res.groups", "ir.actions.server",
+}
 
 
 class TelegramAIChat(models.AbstractModel):
@@ -52,109 +76,36 @@ class TelegramAIChat(models.AbstractModel):
 
     @api.model
     def _get_tools(self, permission):
-        """Return OpenAI-format tool definitions."""
-        tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "search_odoo",
-                    "description": (
-                        "Busca registros em qualquer modelo Odoo. "
-                        "Modelos comuns: sale.order, purchase.order, res.partner, "
-                        "product.product, stock.picking, account.move, project.task, "
-                        "account.analytic.line (horas). "
-                        "Domain usa formato Odoo: [('field','operator','value')]."
-                    ),
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "model": {
-                                "type": "string",
-                                "description": "Nome tecnico do modelo Odoo",
-                            },
-                            "domain": {
-                                "type": "array",
-                                "description": "Filtros Odoo domain",
-                            },
-                            "fields": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "Campos a retornar",
-                            },
-                            "limit": {
-                                "type": "integer",
-                                "description": "Limite (padrao: 10)",
-                            },
-                            "order": {
-                                "type": "string",
-                                "description": "Ordenacao",
-                            },
-                        },
-                        "required": ["model"],
-                    },
-                },
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "count_odoo",
-                    "description": "Conta registros em um modelo Odoo.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "model": {"type": "string"},
-                            "domain": {"type": "array"},
-                        },
-                        "required": ["model"],
-                    },
-                },
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "read_record",
-                    "description": "Le um registro por ID.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "model": {"type": "string"},
-                            "record_id": {"type": "integer"},
-                            "fields": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                            },
-                        },
-                        "required": ["model", "record_id"],
-                    },
-                },
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_fields",
-                    "description": (
-                        "Descobre campos de um modelo Odoo. "
-                        "Use antes de search_odoo se nao souber os campos."
-                    ),
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "model": {"type": "string"},
-                        },
-                        "required": ["model"],
-                    },
-                },
-            },
-        ]
-        return tools
+        """Return OpenAI-format tool definitions from telegram.tool records."""
+        perm_levels = {"freela": 0, "dev": 1, "admin": 2}
+        user_level = perm_levels.get(permission, 0)
+
+        tools = self.env["telegram.tool"].sudo().search([("active", "=", True)])
+        result = []
+        for tool in tools:
+            tool_level = perm_levels.get(tool.permission_level, 0)
+            if user_level >= tool_level:
+                result.append(tool.to_openai_format())
+        return result
 
     @api.model
-    def _execute_tool(self, name, args, user, permission):
+    def _execute_tool(self, name, args, user, permission, chat_id=None):
         """Execute a tool call using the ORM directly."""
-        method = getattr(self, f"_tool_{name}", None)
-        if not method:
+        tool_rec = self.env["telegram.tool"].sudo().search(
+            [("name", "=", name), ("active", "=", True)], limit=1
+        )
+        if not tool_rec:
             return json.dumps({"error": f"Tool desconhecida: {name}"})
+
+        method = getattr(self, tool_rec.method_name, None)
+        if not method:
+            return json.dumps({"error": f"Method not implemented: {tool_rec.method_name}"})
+
         try:
+            if tool_rec.requires_confirmation and chat_id:
+                if self._check_needs_confirmation(name, args):
+                    return self._create_pending_action(name, args, user, chat_id)
+
             result = method(args, user, permission)
             output = json.dumps(result, ensure_ascii=False, default=str)
             if len(output) > 6000:
@@ -165,6 +116,49 @@ class TelegramAIChat(models.AbstractModel):
             return json.dumps({"error": str(e)})
 
     @api.model
+    def _check_needs_confirmation(self, tool_name, args):
+        """Check if a specific call actually needs confirmation."""
+        model = args.get("model", "")
+        if tool_name in ("delete_record", "execute_action"):
+            return True
+        if tool_name == "create_record" and model in CONFIRMATION_MODELS:
+            return True
+        return False
+
+    @api.model
+    def _create_pending_action(self, tool_name, args, user, chat_id):
+        """Create a pending action and return a confirmation prompt."""
+        from datetime import timedelta
+        action_map = {
+            "create_record": "create",
+            "update_record": "update",
+            "delete_record": "delete",
+            "execute_action": "execute",
+        }
+        action_type = action_map.get(tool_name, "execute")
+
+        pending = self.env["telegram.pending_action"].sudo().create({
+            "user_id": user.id,
+            "chat_id": chat_id,
+            "action_type": action_type,
+            "model_name": args.get("model", ""),
+            "record_id": args.get("record_id", 0),
+            "action_data": json.dumps(args, default=str),
+            "expires_at": fields.Datetime.now() + timedelta(minutes=5),
+        })
+
+        return json.dumps({
+            "needs_confirmation": True,
+            "confirmation_id": pending.id,
+            "summary": pending.summary,
+            "message": f"Acao requer confirmacao: {pending.summary}. O usuario recebera botoes para confirmar ou cancelar.",
+        })
+
+    # ==========================================
+    # READ TOOLS
+    # ==========================================
+
+    @api.model
     def _tool_search_odoo(self, args, user, permission):
         model_name = args["model"]
         domain = args.get("domain", [])
@@ -172,7 +166,6 @@ class TelegramAIChat(models.AbstractModel):
         limit = args.get("limit", 10)
         order = args.get("order", "")
 
-        # Permission filtering
         if permission == "freela" and model_name in (
             "project.task", "account.analytic.line"
         ):
@@ -208,21 +201,270 @@ class TelegramAIChat(models.AbstractModel):
     def _tool_get_fields(self, args, user, permission):
         model_name = args["model"]
         Model = self.env[model_name]
-        fields_info = Model.fields_get(attributes=["string", "type", "relation"])
+        fields_info = Model.fields_get(
+            attributes=["string", "type", "relation", "required", "readonly"]
+        )
         simplified = [
             {
                 "name": fname,
                 "type": finfo["type"],
                 "label": finfo["string"],
                 "relation": finfo.get("relation", ""),
+                "required": finfo.get("required", False),
+                "readonly": finfo.get("readonly", False),
             }
             for fname, finfo in fields_info.items()
             if not fname.startswith("__")
         ]
         return {"model": model_name, "field_count": len(simplified), "fields": simplified}
 
+    # ==========================================
+    # WRITE TOOLS
+    # ==========================================
+
     @api.model
-    def chat(self, message, user, permission):
+    def _tool_create_record(self, args, user, permission):
+        model_name = args["model"]
+        values = args.get("values", {})
+
+        if model_name in BLOCKED_MODELS:
+            return {"error": f"Modelo {model_name} nao pode ser modificado via bot"}
+
+        record = self.env[model_name].sudo().create(values)
+        return {"id": record.id, "display_name": record.display_name}
+
+    @api.model
+    def _tool_update_record(self, args, user, permission):
+        model_name = args["model"]
+        record_id = args["record_id"]
+        values = args.get("values", {})
+
+        if model_name in BLOCKED_MODELS:
+            return {"error": f"Modelo {model_name} nao pode ser modificado via bot"}
+
+        record = self.env[model_name].sudo().browse(record_id)
+        if not record.exists():
+            return {"error": f"{model_name} #{record_id} nao encontrado"}
+
+        record.write(values)
+        return {"id": record.id, "display_name": record.display_name, "updated": True}
+
+    @api.model
+    def _tool_execute_action(self, args, user, permission):
+        model_name = args["model"]
+        record_id = args["record_id"]
+        method = args["method"]
+
+        if method not in ALLOWED_METHODS:
+            return {
+                "error": f"Metodo '{method}' nao permitido. "
+                f"Validos: {', '.join(sorted(ALLOWED_METHODS))}"
+            }
+
+        record = self.env[model_name].sudo().browse(record_id)
+        if not record.exists():
+            return {"error": f"{model_name} #{record_id} nao encontrado"}
+
+        getattr(record, method)()
+        return {"executed": method, "id": record.id, "display_name": record.display_name}
+
+    @api.model
+    def _tool_delete_record(self, args, user, permission):
+        model_name = args["model"]
+        record_id = args["record_id"]
+
+        if model_name in BLOCKED_MODELS:
+            return {"error": f"Modelo {model_name} nao pode ser modificado via bot"}
+
+        record = self.env[model_name].sudo().browse(record_id)
+        if not record.exists():
+            return {"error": f"{model_name} #{record_id} nao encontrado"}
+
+        name = record.display_name
+        record.unlink()
+        return {"deleted": True, "display_name": name}
+
+    @api.model
+    def _tool_post_message(self, args, user, permission):
+        model_name = args["model"]
+        record_id = args["record_id"]
+        body = args["body"]
+        msg_type = args.get("message_type", "note")
+
+        record = self.env[model_name].sudo().browse(record_id)
+        if not record.exists():
+            return {"error": f"{model_name} #{record_id} nao encontrado"}
+
+        subtype = "mail.mt_comment" if msg_type == "comment" else "mail.mt_note"
+        record.message_post(
+            body=body,
+            message_type=msg_type if msg_type == "comment" else "notification",
+            subtype_xmlid=subtype,
+            author_id=user.partner_id.id,
+        )
+        return {"posted": True, "model": model_name, "record_id": record_id}
+
+    # ==========================================
+    # GITHUB TOOLS
+    # ==========================================
+
+    @api.model
+    def _github_api(self, endpoint, params=None):
+        """Call GitHub API with configured token."""
+        ICP = self.env["ir.config_parameter"].sudo()
+        token = ICP.get_param("telegram_base.github_token", "")
+        if not token:
+            return {"error": "GitHub token nao configurado. Configure em Configuracoes > Telegram."}
+
+        headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json",
+        }
+        url = f"https://api.github.com/{endpoint}"
+        try:
+            resp = requests.get(url, headers=headers, params=params, timeout=15)
+            resp.raise_for_status()
+            return resp.json()
+        except requests.exceptions.HTTPError as e:
+            return {"error": f"GitHub API: {e.response.status_code}"}
+        except Exception as e:
+            return {"error": f"GitHub API: {str(e)}"}
+
+    @api.model
+    def _get_github_org(self):
+        return self.env["ir.config_parameter"].sudo().get_param(
+            "telegram_base.github_org", "softhill"
+        )
+
+    @api.model
+    def _normalize_repo(self, repo):
+        if "/" not in repo:
+            return f"{self._get_github_org()}/{repo}"
+        return repo
+
+    @api.model
+    def _tool_github_list_repos(self, args, user, permission):
+        org = args.get("org", self._get_github_org())
+        repo_type = args.get("type", "all")
+        data = self._github_api(
+            f"orgs/{org}/repos",
+            {"type": repo_type, "per_page": 30, "sort": "updated"},
+        )
+        if isinstance(data, dict) and "error" in data:
+            return data
+        return {
+            "org": org,
+            "count": len(data),
+            "repos": [
+                {
+                    "name": r["name"],
+                    "private": r["private"],
+                    "description": r.get("description", ""),
+                    "updated_at": r["updated_at"],
+                    "language": r.get("language", ""),
+                }
+                for r in data
+            ],
+        }
+
+    @api.model
+    def _tool_github_read_file(self, args, user, permission):
+        repo = self._normalize_repo(args["repo"])
+        path = args["path"]
+        ref = args.get("ref", "main")
+        data = self._github_api(f"repos/{repo}/contents/{path}", {"ref": ref})
+        if isinstance(data, dict) and "error" in data:
+            return data
+        if isinstance(data, list):
+            return {
+                "type": "directory",
+                "path": path,
+                "files": [{"name": f["name"], "type": f["type"]} for f in data],
+            }
+        content = ""
+        if data.get("content"):
+            try:
+                content = base64.b64decode(data["content"]).decode("utf-8", errors="replace")
+            except Exception:
+                content = "(binary file)"
+        if len(content) > 10000:
+            content = content[:10000] + "\n\n... (truncado)"
+        return {"path": path, "size": data.get("size", 0), "content": content}
+
+    @api.model
+    def _tool_github_search_code(self, args, user, permission):
+        query = args["query"]
+        org = self._get_github_org()
+        q = f"{query} org:{org}"
+        if args.get("repo"):
+            q = f"{query} repo:{self._normalize_repo(args['repo'])}"
+        if args.get("extension"):
+            q += f" extension:{args['extension']}"
+
+        data = self._github_api("search/code", {"q": q, "per_page": 15})
+        if isinstance(data, dict) and "error" in data:
+            return data
+        items = data.get("items", [])
+        return {
+            "total": data.get("total_count", 0),
+            "results": [
+                {"repo": i["repository"]["full_name"], "path": i["path"], "name": i["name"]}
+                for i in items
+            ],
+        }
+
+    @api.model
+    def _tool_github_list_commits(self, args, user, permission):
+        repo = self._normalize_repo(args["repo"])
+        branch = args.get("branch", "main")
+        limit = args.get("limit", 10)
+        data = self._github_api(
+            f"repos/{repo}/commits", {"sha": branch, "per_page": limit}
+        )
+        if isinstance(data, dict) and "error" in data:
+            return data
+        return {
+            "repo": repo,
+            "commits": [
+                {
+                    "sha": c["sha"][:8],
+                    "message": c["commit"]["message"].split("\n")[0],
+                    "author": c["commit"]["author"]["name"],
+                    "date": c["commit"]["author"]["date"],
+                }
+                for c in data
+            ],
+        }
+
+    @api.model
+    def _tool_github_list_prs(self, args, user, permission):
+        repo = self._normalize_repo(args["repo"])
+        state = args.get("state", "open")
+        data = self._github_api(
+            f"repos/{repo}/pulls", {"state": state, "per_page": 15}
+        )
+        if isinstance(data, dict) and "error" in data:
+            return data
+        return {
+            "repo": repo,
+            "prs": [
+                {
+                    "number": pr["number"],
+                    "title": pr["title"],
+                    "state": pr["state"],
+                    "author": pr["user"]["login"],
+                    "created_at": pr["created_at"],
+                }
+                for pr in data
+            ],
+        }
+
+    # ==========================================
+    # CHAT
+    # ==========================================
+
+    @api.model
+    def chat(self, message, user, permission, chat_id=None):
         """Send message to AI with function calling. Returns (response, tool_calls, usage)."""
         config = self._get_config()
         if not config["api_key"]:
@@ -255,9 +497,10 @@ class TelegramAIChat(models.AbstractModel):
                 "messages": messages,
                 "temperature": 0.3,
                 "max_tokens": 4096,
-                "tools": tools,
-                "tool_choice": "auto",
             }
+            if tools:
+                payload["tools"] = tools
+                payload["tool_choice"] = "auto"
 
             try:
                 resp = requests.post(
@@ -292,7 +535,9 @@ class TelegramAIChat(models.AbstractModel):
                 _logger.info("Tool call: %s(%s)", func_name, func_args)
                 all_tool_calls.append({"name": func_name, "args": func_args})
 
-                result = self._execute_tool(func_name, func_args, user, permission)
+                result = self._execute_tool(
+                    func_name, func_args, user, permission, chat_id=chat_id
+                )
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tc["id"],

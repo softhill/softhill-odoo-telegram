@@ -2,3 +2,8 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_telegram_message_freela,telegram.message.freela,model_telegram_message,telegram_base.group_telegram_freela,1,0,0,0
 access_telegram_message_dev,telegram.message.dev,model_telegram_message,telegram_base.group_telegram_dev,1,1,1,0
 access_telegram_message_admin,telegram.message.admin,model_telegram_message,telegram_base.group_telegram_admin,1,1,1,1
+access_telegram_tool_freela,telegram.tool.freela,model_telegram_tool,telegram_base.group_telegram_freela,1,0,0,0
+access_telegram_tool_admin,telegram.tool.admin,model_telegram_tool,telegram_base.group_telegram_admin,1,1,1,1
+access_telegram_pending_freela,telegram.pending_action.freela,model_telegram_pending_action,telegram_base.group_telegram_freela,1,0,0,0
+access_telegram_pending_dev,telegram.pending_action.dev,model_telegram_pending_action,telegram_base.group_telegram_dev,1,1,1,0
+access_telegram_pending_admin,telegram.pending_action.admin,model_telegram_pending_action,telegram_base.group_telegram_admin,1,1,1,1

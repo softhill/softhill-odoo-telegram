@@ -85,6 +85,11 @@ class TelegramBot(models.AbstractModel):
     @api.model
     def process_update(self, update):
         """Process a Telegram update (from webhook)."""
+        callback = update.get("callback_query")
+        if callback:
+            self._handle_callback_query(callback)
+            return
+
         message = update.get("message")
         if not message:
             return
@@ -243,6 +248,45 @@ class TelegramBot(models.AbstractModel):
         return "freela"
 
     @api.model
+    def _handle_callback_query(self, callback):
+        """Handle confirmation button presses."""
+        callback_id = callback.get("id")
+        data = callback.get("data", "")
+        chat_tg_id = str(callback["message"]["chat"]["id"])
+
+        # Answer callback to remove loading indicator
+        self._api_call("answerCallbackQuery", callback_query_id=callback_id)
+
+        if not data.startswith("confirm_") and not data.startswith("cancel_"):
+            return
+
+        parts = data.split("_", 1)
+        action = parts[0]
+        try:
+            pending_id = int(parts[1])
+        except (IndexError, ValueError):
+            return
+
+        pending = self.env["telegram.pending_action"].sudo().browse(pending_id)
+        if not pending.exists() or pending.status != "pending":
+            self.send_message(chat_tg_id, "Acao ja processada ou expirada.")
+            return
+
+        if action == "confirm":
+            result = pending.execute_action()
+            if "error" in result:
+                self.send_message(chat_tg_id, f"Erro: {result['error']}")
+            else:
+                self.send_message(
+                    chat_tg_id,
+                    f"Acao confirmada e executada: {pending.summary}\n"
+                    f"Resultado: {json.dumps(result, ensure_ascii=False, default=str)}",
+                )
+        else:
+            pending.cancel_action()
+            self.send_message(chat_tg_id, "Acao cancelada.")
+
+    @api.model
     def _process_ai_message(self, chat_id, user, text, permission):
         """Process a message through the AI and send the response."""
         import time
@@ -251,7 +295,7 @@ class TelegramBot(models.AbstractModel):
         ai = self.env["telegram.ai.chat"]
         try:
             response, tool_calls, usage = ai.chat(
-                text, user, permission
+                text, user, permission, chat_id=chat_id
             )
         except Exception as e:
             _logger.exception("AI chat error")
@@ -274,4 +318,29 @@ class TelegramBot(models.AbstractModel):
             "tokens_out": usage.get("completion_tokens", 0),
         })
 
-        self.send_message(chat_id, response)
+        # Check if response contains confirmation requests
+        if tool_calls:
+            for tc in tool_calls:
+                tc_result = tc.get("args", {})
+                # The AI will mention confirmation in its response text
+
+        # Check if there are pending confirmations to show buttons
+        pending = self.env["telegram.pending_action"].sudo().search([
+            ("user_id", "=", user.id),
+            ("chat_id", "=", chat_id),
+            ("status", "=", "pending"),
+        ], limit=1, order="create_date desc")
+
+        if pending:
+            self.send_message(
+                chat_id,
+                response,
+                reply_markup=json.dumps({
+                    "inline_keyboard": [[
+                        {"text": "Confirmar", "callback_data": f"confirm_{pending.id}"},
+                        {"text": "Cancelar", "callback_data": f"cancel_{pending.id}"},
+                    ]]
+                }),
+            )
+        else:
+            self.send_message(chat_id, response)
