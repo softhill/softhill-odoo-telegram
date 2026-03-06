@@ -1,8 +1,8 @@
 # Odoo Telegram Bot + AI Assistant
 
-**Your entire Odoo — accessible from a single Telegram chat.**
+**Give your team a fast lane into Odoo — right from Telegram.**
 
-No menus, no filters, no training. Just ask.
+Quick answers, instant actions, zero context switching. The bot brings Odoo data to where your team already is: their chat app. It doesn't replace Odoo — it makes Odoo more accessible.
 
 > **You:** How much did we sell this month?
 >
@@ -41,9 +41,9 @@ The bot runs **inside Odoo** as native modules. No XML-RPC, no middleware, no se
 
 **For your team:**
 
-Your sales reps check pipeline status from their phone between meetings. Your finance team gets overdue invoice reports without opening a browser. Your developers log timesheets from the terminal. Your project managers track deadlines from the same app they use for everything else.
+Your sales reps check pipeline status from their phone between meetings. Your finance team gets a quick overdue report without switching apps. Your developers log timesheets from the terminal. Your project managers get a task summary while commuting.
 
-Everyone already knows how to chat. Nobody needs to learn Odoo's UI.
+The bot is a **fast lane** — not a replacement for Odoo. For detailed work, open Odoo. For quick data and simple actions, just ask the bot.
 
 **For you as admin:**
 
