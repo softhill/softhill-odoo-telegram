@@ -749,6 +749,10 @@ class TelegramAIChat(models.AbstractModel):
         if chat_rec and chat_rec.description:
             system += f"\nChat context: {chat_rec.description}\n"
 
+        # Add custom system prompt for this chat
+        if chat_rec and chat_rec.custom_system_prompt:
+            system += f"\n{chat_rec.custom_system_prompt}\n"
+
         # Add memory summary from older conversations
         if chat_rec and chat_rec.memory_summary:
             system += (
