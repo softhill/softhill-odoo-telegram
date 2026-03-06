@@ -130,6 +130,7 @@ class TelegramAIChat(models.AbstractModel):
         return {}
 
     HISTORY_LIMIT = 10  # number of recent message pairs to include
+    SUMMARIZE_THRESHOLD = 20  # summarize after this many unsummarized messages
 
     @api.model
     def _get_conversation_history(self, chat_id, user):
@@ -151,6 +152,98 @@ class TelegramAIChat(models.AbstractModel):
             history.append({"role": "user", "content": msg.text})
             history.append({"role": "assistant", "content": msg.response})
         return history
+
+    @api.model
+    def maybe_summarize(self, chat_rec):
+        """Summarize older messages if threshold is reached. Called after saving a message."""
+        if not chat_rec:
+            return
+        Message = self.env["telegram.message"].sudo()
+        last_id = chat_rec.memory_last_summarized_id or 0
+
+        # Count unsummarized messages
+        unsummarized = Message.search_count([
+            ("telegram_chat_id", "=", chat_rec.telegram_chat_id),
+            ("direction", "=", "in"),
+            ("id", ">", last_id),
+            ("text", "!=", False),
+            ("response", "!=", False),
+            ("error", "=", False),
+        ])
+
+        if unsummarized < self.SUMMARIZE_THRESHOLD:
+            return
+
+        # Get messages to summarize (all except the most recent HISTORY_LIMIT)
+        all_msgs = Message.search(
+            [
+                ("telegram_chat_id", "=", chat_rec.telegram_chat_id),
+                ("direction", "=", "in"),
+                ("id", ">", last_id),
+                ("text", "!=", False),
+                ("response", "!=", False),
+                ("error", "=", False),
+            ],
+            order="create_date asc",
+        )
+        # Keep the most recent HISTORY_LIMIT intact, summarize the rest
+        if len(all_msgs) <= self.HISTORY_LIMIT:
+            return
+        to_summarize = all_msgs[:-self.HISTORY_LIMIT]
+
+        # Build conversation text for summarization
+        conv_text = ""
+        if chat_rec.memory_summary:
+            conv_text += f"Previous summary:\n{chat_rec.memory_summary}\n\n"
+        conv_text += "New conversations to incorporate:\n"
+        for msg in to_summarize:
+            conv_text += f"User: {msg.text[:500]}\n"
+            conv_text += f"Assistant: {msg.response[:500]}\n\n"
+
+        # Call AI to summarize
+        config = self._get_config()
+        if not config["api_key"]:
+            return
+
+        try:
+            resp = requests.post(
+                f"{config['base_url']}/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {config['api_key']}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": config["model"],
+                    "messages": [
+                        {"role": "system", "content": (
+                            "You are a conversation summarizer. Create a concise summary "
+                            "that captures key facts, decisions, user preferences, and important "
+                            "context from the conversation. Include specific data points, names, "
+                            "numbers, and action items. Write in the same language as the conversation. "
+                            "Keep it under 500 words."
+                        )},
+                        {"role": "user", "content": conv_text},
+                    ],
+                    "temperature": 0.2,
+                    "max_tokens": 1024,
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            summary = resp.json()["choices"][0]["message"]["content"]
+        except Exception:
+            _logger.exception("Failed to summarize conversation")
+            return
+
+        # Save summary and mark last summarized message
+        chat_rec.sudo().write({
+            "memory_summary": summary,
+            "memory_last_summarized_id": to_summarize[-1].id,
+        })
+        _logger.info(
+            "Summarized %d messages for chat %s",
+            len(to_summarize), chat_rec.telegram_chat_id,
+        )
 
     @api.model
     def _get_config(self):
@@ -655,6 +748,13 @@ class TelegramAIChat(models.AbstractModel):
         # Add chat context if in a group
         if chat_rec and chat_rec.description:
             system += f"\nChat context: {chat_rec.description}\n"
+
+        # Add memory summary from older conversations
+        if chat_rec and chat_rec.memory_summary:
+            system += (
+                f"\nConversation memory (summary of older messages):\n"
+                f"{chat_rec.memory_summary}\n"
+            )
 
         messages = [
             {"role": "system", "content": system},

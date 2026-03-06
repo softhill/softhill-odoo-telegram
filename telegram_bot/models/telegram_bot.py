@@ -160,6 +160,13 @@ class TelegramBot(models.AbstractModel):
         chat_rec = self.env["telegram.chat"].sudo().search(
             [("telegram_chat_id", "=", chat_tg_id)], limit=1
         )
+        # Auto-create chat record for DMs (needed for memory summary)
+        if not chat_rec and tg_chat["type"] == "private":
+            chat_rec = self.env["telegram.chat"].sudo().create({
+                "name": f"DM - {from_user.get('first_name', '')} {from_user.get('last_name', '')}".strip(),
+                "telegram_chat_id": str(chat_tg_id),
+                "chat_type": "dm",
+            })
         permission = self._resolve_permission(user, chat_tg_id)
 
         # Process with AI
@@ -450,3 +457,10 @@ class TelegramBot(models.AbstractModel):
             )
         else:
             self.send_message(chat_id, response)
+
+        # Trigger memory summarization (runs after response is sent)
+        if chat_rec and not error_msg:
+            try:
+                self.env["telegram.ai.chat"].maybe_summarize(chat_rec)
+            except Exception:
+                _logger.exception("Memory summarization failed")

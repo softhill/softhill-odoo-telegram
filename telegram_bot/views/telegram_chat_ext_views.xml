@@ -18,6 +18,12 @@
                         Only the tools listed above will be available in this chat.
                     </p>
                 </page>
+                <page string="Memory">
+                    <group>
+                        <field name="memory_summary" readonly="1"/>
+                        <field name="memory_last_summarized_id" readonly="1"/>
+                    </group>
+                </page>
             </xpath>
         </field>
     </record>

@@ -10,3 +10,11 @@ class TelegramChatExt(models.Model):
         help="If set, only these tools are available in this chat. "
              "Leave empty to allow all tools (based on permission level).",
     )
+    memory_summary = fields.Text(
+        string="Memory Summary",
+        help="AI-generated summary of older conversations in this chat.",
+    )
+    memory_last_summarized_id = fields.Integer(
+        string="Last Summarized Message ID",
+        help="ID of the last telegram.message included in the summary.",
+    )
