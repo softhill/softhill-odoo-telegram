@@ -606,7 +606,7 @@ class TelegramAIChat(models.AbstractModel):
                 "model": config["model"],
                 "messages": messages,
                 "temperature": 0.3,
-                "max_tokens": 4096,
+                "max_tokens": 8192,
             }
             if tools:
                 payload["tools"] = tools
@@ -626,9 +626,14 @@ class TelegramAIChat(models.AbstractModel):
                 return "Error communicating with the AI provider.", [], {}
 
             choice = data["choices"][0]
+            finish_reason = choice.get("finish_reason", "")
             assistant_msg = choice["message"]
             usage = data.get("usage", {})
             usage["model"] = config["model"]
+
+            if finish_reason == "length":
+                _logger.warning("AI response truncated (finish_reason=length)")
+                return assistant_msg.get("content") or "Response was too long, please ask a simpler question.", all_tool_calls, usage
 
             if not assistant_msg.get("tool_calls"):
                 return assistant_msg.get("content", ""), all_tool_calls, usage
@@ -640,8 +645,11 @@ class TelegramAIChat(models.AbstractModel):
                 raw_args = tc["function"].get("arguments", "")
                 try:
                     func_args = json.loads(raw_args) if raw_args else {}
-                except json.JSONDecodeError:
-                    _logger.warning("Bad tool args for %s: %s", func_name, raw_args[:200])
+                except json.JSONDecodeError as e:
+                    _logger.warning(
+                        "Bad tool args for %s: error=%s len=%d last50=%s",
+                        func_name, e, len(raw_args), raw_args[-50:] if raw_args else ""
+                    )
                     func_args = {}
 
                 _logger.info("Tool call: %s(%s)", func_name, func_args)
