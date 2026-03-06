@@ -108,6 +108,27 @@ class TelegramAIChat(models.AbstractModel):
                 return profile
         return Profile.browse()  # empty recordset
 
+    @staticmethod
+    def _try_fix_json(raw):
+        """Try to fix common LLM JSON issues (Python literals, etc.)."""
+        import ast
+        if not raw:
+            return {}
+        # Strategy 1: Python literal eval (handles True/False/None, single quotes, tuples)
+        try:
+            result = ast.literal_eval(raw)
+            if isinstance(result, dict):
+                return result
+        except Exception:
+            pass
+        # Strategy 2: Replace common Python→JSON differences
+        try:
+            fixed = raw.replace("True", "true").replace("False", "false").replace("None", "null")
+            return json.loads(fixed)
+        except Exception:
+            pass
+        return {}
+
     @api.model
     def _get_config(self):
         ICP = self.env["ir.config_parameter"].sudo()
@@ -566,12 +587,35 @@ class TelegramAIChat(models.AbstractModel):
     # CHAT
     # ==========================================
 
+    # Tool display names for status messages
+    TOOL_LABELS = {
+        "search_odoo": "🔍 Consultando dados...",
+        "count_odoo": "🔢 Contando registros...",
+        "read_odoo": "📖 Lendo registros...",
+        "create_odoo": "✏️ Criando registro...",
+        "write_odoo": "✏️ Atualizando registro...",
+        "unlink_odoo": "🗑️ Removendo registro...",
+        "execute_method": "⚙️ Executando ação...",
+        "list_models": "📋 Listando modelos...",
+        "model_fields": "📋 Verificando campos...",
+        "search_github": "🐙 Consultando GitHub...",
+        "list_github_prs": "🐙 Listando PRs...",
+        "generate_report": "📊 Gerando relatório...",
+    }
+
     @api.model
-    def chat(self, message, user, permission, chat_id=None, chat_rec=None):
+    def chat(self, message, user, permission, chat_id=None, chat_rec=None, status_callback=None):
         """Send message to AI with function calling. Returns (response, tool_calls, usage)."""
         config = self._get_config()
         if not config["api_key"]:
             return "AI not configured. Set it in Settings > Telegram.", [], {}
+
+        def _notify(text):
+            if status_callback:
+                try:
+                    status_callback(text)
+                except Exception:
+                    pass
 
         user_profile = self._resolve_user_profile(user)
 
@@ -602,6 +646,8 @@ class TelegramAIChat(models.AbstractModel):
         }
 
         for _round in range(MAX_TOOL_ROUNDS):
+            _notify("🤖 Pensando...")
+
             payload = {
                 "model": config["model"],
                 "messages": messages,
@@ -636,6 +682,7 @@ class TelegramAIChat(models.AbstractModel):
                 return assistant_msg.get("content") or "Response was too long, please ask a simpler question.", all_tool_calls, usage
 
             if not assistant_msg.get("tool_calls"):
+                _notify("✍️ Escrevendo resposta...")
                 return assistant_msg.get("content", ""), all_tool_calls, usage
 
             messages.append(assistant_msg)
@@ -647,10 +694,16 @@ class TelegramAIChat(models.AbstractModel):
                     func_args = json.loads(raw_args) if raw_args else {}
                 except json.JSONDecodeError as e:
                     _logger.warning(
-                        "Bad tool args for %s: error=%s len=%d last50=%s",
-                        func_name, e, len(raw_args), raw_args[-50:] if raw_args else ""
+                        "Bad tool args for %s: error=%s len=%d around_err=%s",
+                        func_name, e, len(raw_args),
+                        repr(raw_args[max(0, e.pos - 20):e.pos + 20]) if raw_args and hasattr(e, 'pos') else repr(raw_args[:80])
                     )
-                    func_args = {}
+                    # Try to fix common LLM JSON issues
+                    func_args = self._try_fix_json(raw_args)
+
+                # Update status with tool label
+                label = self.TOOL_LABELS.get(func_name, f"⚙️ Executando {func_name}...")
+                _notify(label)
 
                 _logger.info("Tool call: %s(%s)", func_name, func_args)
                 all_tool_calls.append({"name": func_name, "args": func_args})

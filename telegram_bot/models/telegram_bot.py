@@ -354,16 +354,44 @@ class TelegramBot(models.AbstractModel):
             self.send_message(chat_tg_id, "Action cancelled.")
 
     @api.model
+    def send_chat_action(self, chat_id, action="typing"):
+        """Send chat action (typing indicator) to a Telegram chat."""
+        return self._api_call("sendChatAction", chat_id=chat_id, action=action)
+
+    @api.model
+    def edit_message(self, chat_id, message_id, text, parse_mode="Markdown"):
+        """Edit an existing message."""
+        return self._api_call(
+            "editMessageText",
+            chat_id=chat_id,
+            message_id=message_id,
+            text=text,
+            parse_mode=parse_mode,
+        )
+
+    @api.model
     def _process_ai_message(self, chat_id, user, text, permission, chat_rec=None):
         """Process a message through the AI and send the response."""
         import time
         start = time.time()
 
+        # Send initial status message
+        status_msg = self.send_message(chat_id, "💭 Pensando...")
+        status_msg_id = status_msg.get("message_id")
+
+        def update_status(status_text):
+            if status_msg_id:
+                try:
+                    self.edit_message(chat_id, status_msg_id, status_text, parse_mode="Markdown")
+                except Exception:
+                    pass
+
         ai = self.env["telegram.ai.chat"]
         error_msg = ""
         try:
             response, tool_calls, usage = ai.chat(
-                text, user, permission, chat_id=chat_id, chat_rec=chat_rec
+                text, user, permission, chat_id=chat_id, chat_rec=chat_rec,
+                status_callback=update_status,
             )
         except Exception as e:
             _logger.exception("AI chat error")
@@ -371,6 +399,13 @@ class TelegramBot(models.AbstractModel):
             tool_calls = []
             usage = {}
             error_msg = str(e)
+
+        # Delete status message before sending final response
+        if status_msg_id:
+            try:
+                self._api_call("deleteMessage", chat_id=chat_id, message_id=status_msg_id)
+            except Exception:
+                pass
 
         elapsed = time.time() - start
 
