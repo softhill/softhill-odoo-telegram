@@ -12,7 +12,8 @@
                             <field name="telegram_id"/>
                             <field name="telegram_profile_id"/>
                         </group>
-                        <group string="API Token">
+                        <group string="API Token"
+                               groups="telegram_base.group_telegram_admin">
                             <field name="telegram_api_token"/>
                             <button name="action_generate_telegram_token"
                                     string="Generate Token" type="object"
