@@ -4,11 +4,11 @@
 
 Ask questions in plain language on Telegram and get instant answers from your Odoo data — sales reports, overdue invoices, stock levels, project status, CRM pipeline — all without opening a browser. Create quotations, log timesheets, register payments, and manage contacts just by chatting. Works from your phone, your IDE, or any HTTP client.
 
-> *"Quanto vendemos esse mês?"* — The bot queries `sale.order`, aggregates by period, and responds in seconds.
+> *"How much did we sell this month?"* — The bot queries `sale.order`, aggregates by period, and responds in seconds.
 >
-> *"Cria uma cotação pro cliente X com 10 unidades do produto Y"* — Done. Quotation created, link sent.
+> *"Create a quote for client X with 10 units of product Y"* — Done. Quotation created, link sent.
 >
-> *"Quem está devendo?"* — Overdue invoices listed with amounts, due dates, and days overdue.
+> *"Who has overdue invoices?"* — Overdue invoices listed with amounts, due dates, and days overdue.
 
 No XML-RPC. No middleware. No separate server. The bot runs **inside Odoo** as native modules, using the ORM directly with full security context. Install, configure your Telegram token and AI provider, and your team is up and running.
 
