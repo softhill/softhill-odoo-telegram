@@ -33,6 +33,24 @@ Quick answers, instant actions, zero context switching. The bot brings Odoo data
 > - 3.0 hours on 2026-03-06
 > - Description: Finished the responsive layout
 
+> **You:** Any recent commits on the e-commerce repo?
+>
+> **Bot:** 📝 Last 5 commits on `e-commerce-app` (main)
+> - `a3f1c9d` — fix: cart total not updating on quantity change — @maria (2h ago)
+> - `8b2e4f7` — feat: add coupon code validation endpoint — @lucas (5h ago)
+> - `c71d0a3` — refactor: extract payment gateway into service layer — @maria (yesterday)
+> - `2e9f8b1` — test: add integration tests for checkout flow — @carlos (yesterday)
+> - `f4a6d2e` — docs: update API reference for v2 endpoints — @lucas (2 days ago)
+
+> **You:** Search for "payment_gateway" in the backend repo
+>
+> **Bot:** 🔍 Found 8 matches in `backend-api`
+> - `src/services/payment_gateway.py` — main gateway abstraction (L1-142)
+> - `src/services/stripe_provider.py` — Stripe implementation (L23, L67, L89)
+> - `src/services/paypal_provider.py` — PayPal implementation (L15, L48)
+> - `tests/test_payment.py` — gateway mock and assertions (L31, L55)
+> - `docs/payments.md` — integration guide reference (L12)
+
 The bot runs **inside Odoo** as native modules. No XML-RPC, no middleware, no separate server — it uses the ORM directly with full security context. Install, configure your Telegram token and AI provider, and your team is running in minutes.
 
 ---
@@ -54,6 +72,28 @@ The bot is a **fast lane** — not a replacement for Odoo. For detailed work, op
 - Sensitive models and fields are automatically protected
 - MCP endpoint lets your IDE (Claude Code, Cursor, Windsurf) query Odoo directly
 - REST API for scripts and external integrations
+
+---
+
+## GitHub Integration — Your Codebase at Your Fingertips
+
+The bot connects to your GitHub organization and gives your team instant access to repositories, code, commits, and pull requests — all from Telegram. No need to open a browser, switch tabs, or remember which repo has what.
+
+**What your team can do:**
+
+- **List repositories** — "What repos do we have?" instantly shows all active repos in your org
+- **Read files** — "Show me the docker-compose.yml from the infra repo" reads any file from any branch
+- **Search code** — "Where do we use `redis` in the backend?" searches across all repos, returns exact file paths and line numbers
+- **Check commits** — "What was deployed this week on the API?" shows recent commit history with authors and messages
+- **Review PRs** — "Any open PRs on the mobile app?" lists pull requests with status, author, and review state
+
+**Why this matters:**
+
+Your project manager can check deployment status without bothering developers. A new team member can find where something is implemented without navigating unfamiliar repos. Your tech lead can review commit activity across all projects from their phone during lunch.
+
+The GitHub tools respect the same profile-based permissions as everything else. Restrict code access to developers only, or open repo listing to the whole team — your call.
+
+> **Configuration:** Add your GitHub token and organization name in **Settings > Telegram > GitHub**. The token needs `repo:read` scope.
 
 ---
 
@@ -250,7 +290,7 @@ git submodule add https://github.com/softhill/softhill-odoo-telegram.git
 4. Configure your **AI Provider** — DeepSeek (cheapest), Qwen, OpenAI, or any compatible API
 5. (Optional) Add **GitHub Token** for repo access tools
 6. Click **Set Webhook** in **Telegram > Configuration**
-7. Assign users to groups (**Admin / Dev / Freela**) in Settings > Users
+7. Assign users to groups (**Admin / Manager / User**) in Settings > Users
 8. Review tools in **Telegram > Configuration > Tools** — enable or disable as needed
 
 ### AI Providers
@@ -374,7 +414,7 @@ Go to **Telegram > Configuration > Tools**, create a record with name, descripti
     <field name="description">Returns custom report data...</field>
     <field name="category">read</field>
     <field name="method_name">_tool_my_report</field>
-    <field name="permission_level">freela</field>
+    <field name="permission_level">dev</field>
     <field name="input_schema">{"type": "object", "properties": {...}}</field>
 </record>
 ```
