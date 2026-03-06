@@ -146,9 +146,39 @@ Each tool record defines: name, description, JSON schema, method name, permissio
 
 ## Installation
 
-### Via Doodba (recommended)
+### 1. Clone the repository
 
-Add to your `repos.yaml`:
+```bash
+cd /path/to/your/odoo/addons
+git clone https://github.com/softhill/softhill-odoo-telegram.git
+```
+
+Or add it as a git submodule:
+
+```bash
+git submodule add https://github.com/softhill/softhill-odoo-telegram.git
+```
+
+### 2. Add to your addons path
+
+In your Odoo config file (`odoo.conf`), add the cloned directory to `addons_path`:
+
+```ini
+addons_path = /path/to/odoo/addons,/path/to/softhill-odoo-telegram
+```
+
+### 3. Install the modules
+
+Restart Odoo, go to **Apps**, remove the "Apps" filter, search for "Telegram" and install:
+
+- **Telegram Base** — Required. User fields, security groups, AI config.
+- **Telegram Bot** — Required. AI chat, tool registry, analytics.
+- **Telegram API** — Optional. REST API for external integrations.
+- **Telegram MCP** — Optional. MCP server for IDE integration (Claude Code, Cursor, Windsurf).
+
+### Via Doodba / Docker
+
+If you use [Doodba](https://github.com/Tecnativa/doodba), add to your `repos.yaml`:
 
 ```yaml
 ./softhill-odoo-telegram:
@@ -156,12 +186,12 @@ Add to your `repos.yaml`:
     depth: $DEPTH_DEFAULT
   remotes:
     origin: https://github.com/softhill/softhill-odoo-telegram.git
-  target: origin main
+  target: origin dev
   merges:
-    - origin main
+    - origin dev
 ```
 
-Add to your `addons.yaml`:
+And to your `addons.yaml`:
 
 ```yaml
 softhill-odoo-telegram:
@@ -170,10 +200,6 @@ softhill-odoo-telegram:
   - telegram_api    # optional
   - telegram_mcp    # optional
 ```
-
-### Manual
-
-Copy the module directories to your Odoo addons path and install via the Apps menu.
 
 ## Configuration
 
