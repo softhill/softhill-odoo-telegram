@@ -166,6 +166,19 @@ class TelegramAIChat(models.AbstractModel):
             return json.dumps({"error": f"Method not implemented: {tool_rec.method_name}"})
 
         try:
+            # Validate required parameters from tool schema
+            try:
+                schema = json.loads(tool_rec.input_schema) if tool_rec.input_schema else {}
+            except (json.JSONDecodeError, TypeError):
+                schema = {}
+            required = schema.get("required", [])
+            missing = [r for r in required if r not in args]
+            if missing:
+                return json.dumps({
+                    "error": f"Missing required parameters: {', '.join(missing)}",
+                    "hint": f"Required: {required}. Received: {list(args.keys())}",
+                })
+
             if tool_rec.requires_confirmation and chat_id:
                 if self._check_needs_confirmation(name, args):
                     return self._create_pending_action(name, args, user, chat_id)
@@ -624,9 +637,11 @@ class TelegramAIChat(models.AbstractModel):
 
             for tc in assistant_msg["tool_calls"]:
                 func_name = tc["function"]["name"]
+                raw_args = tc["function"].get("arguments", "")
                 try:
-                    func_args = json.loads(tc["function"]["arguments"])
+                    func_args = json.loads(raw_args) if raw_args else {}
                 except json.JSONDecodeError:
+                    _logger.warning("Bad tool args for %s: %s", func_name, raw_args[:200])
                     func_args = {}
 
                 _logger.info("Tool call: %s(%s)", func_name, func_args)
