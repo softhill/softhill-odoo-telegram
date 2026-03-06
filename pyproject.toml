@@ -11,6 +11,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+mcp = [
+    "mcp>=1.9",
+    "httpx>=0.27",
+]
 dev = [
     "ruff",
     "pytest",

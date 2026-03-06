@@ -1,7 +1,7 @@
 """Generic REST API routes for Odoo-Telegram integration.
 
 These routes proxy requests to Odoo via the OdooClient, respecting
-user permissions and channel guards (HUMAN_ONLY_ACTIONS).
+user permissions and the unified channel guard (action x group x channel).
 """
 
 import logging
@@ -27,6 +27,10 @@ def setup_api_routes(app: web.Application) -> None:
     app.router.add_post("/api/v1/changes", create_change)
     app.router.add_post("/api/v1/changes/{change_id}/approve", approve_change)
     app.router.add_post("/api/v1/chat", chat)
+    # Schema introspection (admin/dev only)
+    app.router.add_get("/api/v1/models", list_models)
+    app.router.add_get("/api/v1/models/{model_name}", get_model_fields)
+    app.router.add_post("/api/v1/search", generic_search)
 
 
 async def health(request: web.Request) -> web.Response:
@@ -35,6 +39,54 @@ async def health(request: web.Request) -> web.Response:
 
 def _get_ctx(request: web.Request) -> tuple[UserContext, OdooClient]:
     return request["user_ctx"], request.app["odoo"]
+
+
+# --- Schema introspection ---
+
+async def list_models(request: web.Request) -> web.Response:
+    """List available Odoo models. Admin/dev only."""
+    ctx, odoo = _get_ctx(request)
+    if ctx.effective_permission == "freela":
+        return web.json_response({"error": "Insufficient permissions"}, status=403)
+
+    filter_term = request.query.get("filter", "")
+    models = await odoo.list_models(filter_term)
+    return web.json_response({"models": models})
+
+
+async def get_model_fields(request: web.Request) -> web.Response:
+    """Get field definitions for a model. Admin/dev only."""
+    ctx, odoo = _get_ctx(request)
+    if ctx.effective_permission == "freela":
+        return web.json_response({"error": "Insufficient permissions"}, status=403)
+
+    model_name = request.match_info["model_name"]
+    fields = await odoo.get_model_fields(model_name)
+    return web.json_response({"model": model_name, "fields": fields})
+
+
+async def generic_search(request: web.Request) -> web.Response:
+    """Generic search on any model. Admin/dev only.
+
+    Body: {"model": "res.partner", "domain": [...], "fields": [...], "limit": 10}
+    """
+    ctx, odoo = _get_ctx(request)
+    if ctx.effective_permission == "freela":
+        return web.json_response({"error": "Insufficient permissions"}, status=403)
+
+    data = await request.json()
+    model = data.get("model")
+    if not model:
+        return web.json_response({"error": "model is required"}, status=400)
+
+    records = await odoo.search_read(
+        model,
+        domain=data.get("domain", []),
+        fields=data.get("fields"),
+        limit=data.get("limit", 20),
+        order=data.get("order", ""),
+    )
+    return web.json_response({"model": model, "records": records})
 
 
 # --- Tasks ---
@@ -99,7 +151,7 @@ async def get_hours(request: web.Request) -> web.Response:
 
 async def create_hours(request: web.Request) -> web.Response:
     ctx, odoo = _get_ctx(request)
-    ChannelGuard.require("create_hours", ctx.channel)
+    ChannelGuard.require("create_hours", ctx.channel, ctx.telegram_group)
 
     data = await request.json()
     values = {
@@ -184,7 +236,7 @@ async def create_change(request: web.Request) -> web.Response:
 
 async def approve_change(request: web.Request) -> web.Response:
     ctx, odoo = _get_ctx(request)
-    ChannelGuard.require("approve_change", ctx.channel)
+    ChannelGuard.require("approve_change", ctx.channel, ctx.telegram_group)
 
     if ctx.effective_permission != "admin":
         return web.json_response(

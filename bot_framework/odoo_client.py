@@ -158,3 +158,29 @@ class OdooClient:
             if await self.user_has_group(user_id, group):
                 return group.split("_")[-1]  # admin, dev, or freela
         return None
+
+    # --- Schema introspection helpers ---
+
+    async def list_models(self, filter_term: str = "") -> list[dict]:
+        """List available Odoo models. Optionally filter by name."""
+        domain = []
+        if filter_term:
+            domain.append(("model", "ilike", filter_term))
+        return await self.search_read(
+            "ir.model",
+            domain,
+            fields=["model", "name", "info"],
+            order="model asc",
+        )
+
+    async def get_model_fields(self, model_name: str) -> list[dict]:
+        """Get field definitions for a given model."""
+        return await self.search_read(
+            "ir.model.fields",
+            [("model", "=", model_name)],
+            fields=[
+                "name", "field_description", "ttype", "relation",
+                "required", "readonly", "store",
+            ],
+            order="name asc",
+        )
