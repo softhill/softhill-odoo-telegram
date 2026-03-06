@@ -1,0 +1,373 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <!-- ==========================================
+         SALES TOOLS
+         ========================================== -->
+
+    <record id="tool_sales_summary" model="telegram.tool">
+        <field name="name">sales_summary</field>
+        <field name="display_name_field">Resumo de Vendas</field>
+        <field name="description">Retorna resumo de vendas com totais, quantidades e top clientes. Pode filtrar por periodo (today, week, month, year) e estado (draft=cotacao, sale=confirmado, done=bloqueado). Util para perguntas como "quanto vendemos esse mes?", "quantos pedidos abertos?".</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_sales_summary</field>
+        <field name="permission_level">freela</field>
+        <field name="sequence">30</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "period": {"type": "string", "enum": ["today", "week", "month", "year", "all"], "description": "Periodo (padrao: month)"},
+        "state": {"type": "string", "enum": ["draft", "sale", "done", "cancel", "all"], "description": "Estado do pedido (padrao: all exceto cancelados)"},
+        "salesperson": {"type": "string", "description": "Filtrar por nome do vendedor"}
+    }
+}</field>
+    </record>
+
+    <record id="tool_create_quotation" model="telegram.tool">
+        <field name="name">create_quotation</field>
+        <field name="display_name_field">Criar Cotacao</field>
+        <field name="description">Cria uma cotacao (sale.order) com linhas de produto. Informe o cliente (nome ou ID) e os produtos com quantidades. O sistema busca automaticamente os precos do produto.</field>
+        <field name="category">write</field>
+        <field name="method_name">_tool_create_quotation</field>
+        <field name="permission_level">dev</field>
+        <field name="requires_confirmation" eval="True"/>
+        <field name="sequence">31</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "partner": {"type": "string", "description": "Nome ou ID do cliente"},
+        "lines": {"type": "array", "items": {"type": "object", "properties": {"product": {"type": "string", "description": "Nome ou ID do produto"}, "qty": {"type": "number", "description": "Quantidade"}, "price": {"type": "number", "description": "Preco unitario (opcional, usa preco do produto)"}}}, "description": "Linhas do pedido"},
+        "note": {"type": "string", "description": "Nota interna (opcional)"}
+    },
+    "required": ["partner", "lines"]
+}</field>
+    </record>
+
+    <!-- ==========================================
+         INVOICING TOOLS
+         ========================================== -->
+
+    <record id="tool_invoicing_summary" model="telegram.tool">
+        <field name="name">invoicing_summary</field>
+        <field name="display_name_field">Resumo Faturamento</field>
+        <field name="description">Retorna resumo do faturamento: total faturado, a receber, em atraso, e top clientes devedores. Filtra por periodo. Util para "quanto temos a receber?", "quem esta em atraso?".</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_invoicing_summary</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">35</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "period": {"type": "string", "enum": ["today", "week", "month", "year", "all"], "description": "Periodo (padrao: month)"},
+        "type": {"type": "string", "enum": ["out_invoice", "in_invoice", "out_refund", "in_refund", "all"], "description": "Tipo: out_invoice=cliente, in_invoice=fornecedor (padrao: out_invoice)"}
+    }
+}</field>
+    </record>
+
+    <!-- ==========================================
+         CRM TOOLS
+         ========================================== -->
+
+    <record id="tool_crm_pipeline" model="telegram.tool">
+        <field name="name">crm_pipeline</field>
+        <field name="display_name_field">Pipeline CRM</field>
+        <field name="description">Retorna resumo do pipeline de CRM: oportunidades por estagio, valor total, e oportunidades recentes. Util para "como esta o pipeline?", "quantas oportunidades temos?", "qual o valor total do pipeline?".</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_crm_pipeline</field>
+        <field name="permission_level">freela</field>
+        <field name="sequence">40</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "salesperson": {"type": "string", "description": "Filtrar por vendedor"},
+        "stage": {"type": "string", "description": "Filtrar por estagio (nome)"}
+    }
+}</field>
+    </record>
+
+    <record id="tool_create_lead" model="telegram.tool">
+        <field name="name">create_lead</field>
+        <field name="display_name_field">Criar Lead/Oportunidade</field>
+        <field name="description">Cria um lead ou oportunidade no CRM. Informe nome, contato, receita esperada e descricao.</field>
+        <field name="category">write</field>
+        <field name="method_name">_tool_create_lead</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">41</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "name": {"type": "string", "description": "Nome da oportunidade"},
+        "partner": {"type": "string", "description": "Nome ou email do contato"},
+        "expected_revenue": {"type": "number", "description": "Receita esperada"},
+        "description": {"type": "string", "description": "Descricao/notas"},
+        "type": {"type": "string", "enum": ["lead", "opportunity"], "description": "Tipo (padrao: opportunity)"}
+    },
+    "required": ["name"]
+}</field>
+    </record>
+
+    <!-- ==========================================
+         PROJECT / TIMESHEET TOOLS
+         ========================================== -->
+
+    <record id="tool_project_summary" model="telegram.tool">
+        <field name="name">project_summary</field>
+        <field name="display_name_field">Resumo Projetos</field>
+        <field name="description">Retorna resumo de projetos e tarefas: tarefas por estagio, atrasadas, horas registradas. Filtra por projeto ou responsavel. Util para "como estao meus projetos?", "quantas tarefas atrasadas?", "quantas horas registrei?".</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_project_summary</field>
+        <field name="permission_level">freela</field>
+        <field name="sequence">45</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "project": {"type": "string", "description": "Nome do projeto (filtra)"},
+        "user": {"type": "string", "description": "Nome do responsavel (filtra)"},
+        "period": {"type": "string", "enum": ["today", "week", "month", "year"], "description": "Periodo para horas (padrao: month)"}
+    }
+}</field>
+    </record>
+
+    <record id="tool_log_timesheet" model="telegram.tool">
+        <field name="name">log_timesheet</field>
+        <field name="display_name_field">Registrar Horas</field>
+        <field name="description">Registra horas trabalhadas (timesheet) em uma tarefa. Informe a tarefa (nome ou ID), horas e descricao do trabalho realizado.</field>
+        <field name="category">write</field>
+        <field name="method_name">_tool_log_timesheet</field>
+        <field name="permission_level">freela</field>
+        <field name="sequence">46</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "task": {"type": "string", "description": "Nome ou ID da tarefa"},
+        "hours": {"type": "number", "description": "Horas trabalhadas (ex: 1.5 = 1h30)"},
+        "description": {"type": "string", "description": "Descricao do trabalho"},
+        "date": {"type": "string", "description": "Data (YYYY-MM-DD, padrao: hoje)"}
+    },
+    "required": ["task", "hours", "description"]
+}</field>
+    </record>
+
+    <record id="tool_create_task" model="telegram.tool">
+        <field name="name">create_task</field>
+        <field name="display_name_field">Criar Tarefa</field>
+        <field name="description">Cria uma tarefa em um projeto. Informe o projeto, nome da tarefa, descricao e responsavel.</field>
+        <field name="category">write</field>
+        <field name="method_name">_tool_create_task</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">47</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "project": {"type": "string", "description": "Nome ou ID do projeto"},
+        "name": {"type": "string", "description": "Nome da tarefa"},
+        "description": {"type": "string", "description": "Descricao"},
+        "assignee": {"type": "string", "description": "Nome do responsavel"},
+        "deadline": {"type": "string", "description": "Prazo (YYYY-MM-DD)"},
+        "priority": {"type": "string", "enum": ["0", "1"], "description": "0=normal, 1=urgente"}
+    },
+    "required": ["project", "name"]
+}</field>
+    </record>
+
+    <!-- ==========================================
+         CONTACTS TOOLS
+         ========================================== -->
+
+    <record id="tool_find_contact" model="telegram.tool">
+        <field name="name">find_contact</field>
+        <field name="display_name_field">Buscar Contato</field>
+        <field name="description">Busca contatos por nome, email, telefone ou empresa. Retorna dados completos incluindo endereco, vendas recentes e saldo. Mais completo que search_odoo para contatos.</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_find_contact</field>
+        <field name="permission_level">freela</field>
+        <field name="sequence">50</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "query": {"type": "string", "description": "Nome, email, telefone ou CNPJ/CPF a buscar"},
+        "is_company": {"type": "boolean", "description": "Filtrar apenas empresas"},
+        "customer": {"type": "boolean", "description": "Filtrar apenas clientes (com vendas)"},
+        "supplier": {"type": "boolean", "description": "Filtrar apenas fornecedores"}
+    },
+    "required": ["query"]
+}</field>
+    </record>
+
+    <record id="tool_create_contact" model="telegram.tool">
+        <field name="name">create_contact</field>
+        <field name="display_name_field">Criar Contato</field>
+        <field name="description">Cria um contato (pessoa ou empresa) com dados completos.</field>
+        <field name="category">write</field>
+        <field name="method_name">_tool_create_contact</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">51</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "name": {"type": "string", "description": "Nome completo ou razao social"},
+        "email": {"type": "string"},
+        "phone": {"type": "string"},
+        "mobile": {"type": "string"},
+        "is_company": {"type": "boolean", "description": "True para empresa, False para pessoa"},
+        "company": {"type": "string", "description": "Nome da empresa pai (para contatos de empresa)"},
+        "street": {"type": "string"},
+        "city": {"type": "string"},
+        "state": {"type": "string", "description": "Estado (sigla: SP, RJ, etc.)"},
+        "zip": {"type": "string", "description": "CEP"},
+        "vat": {"type": "string", "description": "CNPJ ou CPF"}
+    },
+    "required": ["name"]
+}</field>
+    </record>
+
+    <!-- ==========================================
+         PURCHASE TOOLS
+         ========================================== -->
+
+    <record id="tool_purchase_summary" model="telegram.tool">
+        <field name="name">purchase_summary</field>
+        <field name="display_name_field">Resumo Compras</field>
+        <field name="description">Retorna resumo de compras: total de pedidos, valor, pedidos pendentes e top fornecedores. Util para "quanto gastamos esse mes?", "quantos pedidos de compra pendentes?".</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_purchase_summary</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">55</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "period": {"type": "string", "enum": ["today", "week", "month", "year", "all"], "description": "Periodo (padrao: month)"},
+        "state": {"type": "string", "enum": ["draft", "sent", "purchase", "done", "cancel", "all"], "description": "Estado (padrao: all exceto cancelados)"}
+    }
+}</field>
+    </record>
+
+    <!-- ==========================================
+         INVENTORY TOOLS
+         ========================================== -->
+
+    <record id="tool_stock_levels" model="telegram.tool">
+        <field name="name">stock_levels</field>
+        <field name="display_name_field">Niveis de Estoque</field>
+        <field name="description">Consulta niveis de estoque de produtos. Pode buscar por nome de produto, mostrar apenas itens com estoque baixo, ou listar os mais vendidos. Util para "quanto temos de [produto]?", "quais produtos estao em falta?".</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_stock_levels</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">60</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "product": {"type": "string", "description": "Nome do produto (busca parcial)"},
+        "low_stock": {"type": "boolean", "description": "Apenas produtos com estoque abaixo do minimo"},
+        "warehouse": {"type": "string", "description": "Nome do armazem"},
+        "limit": {"type": "integer", "description": "Limite de resultados (padrao: 20)"}
+    }
+}</field>
+    </record>
+
+    <record id="tool_stock_moves" model="telegram.tool">
+        <field name="name">stock_moves</field>
+        <field name="display_name_field">Movimentacoes Estoque</field>
+        <field name="description">Lista movimentacoes de estoque recentes (entradas, saidas, transferencias). Filtra por produto, tipo de operacao ou periodo.</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_stock_moves</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">61</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "product": {"type": "string", "description": "Nome do produto"},
+        "picking_type": {"type": "string", "enum": ["incoming", "outgoing", "internal"], "description": "Tipo: incoming=entrada, outgoing=saida, internal=transferencia"},
+        "period": {"type": "string", "enum": ["today", "week", "month"], "description": "Periodo (padrao: week)"},
+        "limit": {"type": "integer", "description": "Limite (padrao: 20)"}
+    }
+}</field>
+    </record>
+
+    <!-- ==========================================
+         HR TOOLS
+         ========================================== -->
+
+    <record id="tool_employees" model="telegram.tool">
+        <field name="name">employees</field>
+        <field name="display_name_field">Funcionarios</field>
+        <field name="description">Consulta dados de funcionarios: lista, departamento, cargo, contrato. Util para "quantos funcionarios temos?", "quem e do departamento X?".</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_employees</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">65</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "name": {"type": "string", "description": "Nome do funcionario"},
+        "department": {"type": "string", "description": "Nome do departamento"},
+        "job": {"type": "string", "description": "Cargo"}
+    }
+}</field>
+    </record>
+
+    <!-- ==========================================
+         CALENDAR TOOLS
+         ========================================== -->
+
+    <record id="tool_calendar" model="telegram.tool">
+        <field name="name">calendar</field>
+        <field name="display_name_field">Agenda</field>
+        <field name="description">Consulta eventos do calendario. Mostra compromissos, reunioes e eventos futuros ou de um periodo. Util para "o que tenho na agenda hoje?", "quais reunioes essa semana?".</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_calendar</field>
+        <field name="permission_level">freela</field>
+        <field name="sequence">70</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "period": {"type": "string", "enum": ["today", "tomorrow", "week", "month"], "description": "Periodo (padrao: week)"},
+        "user": {"type": "string", "description": "Nome do usuario (padrao: usuario atual)"}
+    }
+}</field>
+    </record>
+
+    <record id="tool_create_event" model="telegram.tool">
+        <field name="name">create_event</field>
+        <field name="display_name_field">Criar Evento</field>
+        <field name="description">Cria um evento no calendario. Informe titulo, data/hora inicio e fim, e participantes.</field>
+        <field name="category">write</field>
+        <field name="method_name">_tool_create_event</field>
+        <field name="permission_level">dev</field>
+        <field name="sequence">71</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "name": {"type": "string", "description": "Titulo do evento"},
+        "start": {"type": "string", "description": "Data/hora inicio (YYYY-MM-DD HH:MM)"},
+        "stop": {"type": "string", "description": "Data/hora fim (YYYY-MM-DD HH:MM)"},
+        "attendees": {"type": "array", "items": {"type": "string"}, "description": "Nomes ou emails dos participantes"},
+        "description": {"type": "string"}
+    },
+    "required": ["name", "start", "stop"]
+}</field>
+    </record>
+
+    <!-- ==========================================
+         EXPENSE TOOLS
+         ========================================== -->
+
+    <record id="tool_expenses" model="telegram.tool">
+        <field name="name">expenses</field>
+        <field name="display_name_field">Despesas</field>
+        <field name="description">Consulta despesas (hr.expense): pendentes de aprovacao, aprovadas, pagas. Util para "quais despesas estao pendentes?", "quanto gastei esse mes?".</field>
+        <field name="category">read</field>
+        <field name="method_name">_tool_expenses</field>
+        <field name="permission_level">freela</field>
+        <field name="sequence">75</field>
+        <field name="input_schema">{
+    "type": "object",
+    "properties": {
+        "state": {"type": "string", "enum": ["draft", "reported", "approved", "done", "refused", "all"], "description": "Estado (padrao: all)"},
+        "employee": {"type": "string", "description": "Nome do funcionario"},
+        "period": {"type": "string", "enum": ["week", "month", "year"], "description": "Periodo (padrao: month)"}
+    }
+}</field>
+    </record>
+
+</odoo>

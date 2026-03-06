@@ -10,6 +10,7 @@
     "data": [
         "security/ir.model.access.csv",
         "data/telegram_tools_data.xml",
+        "data/telegram_tools_core_data.xml",
         "views/telegram_message_views.xml",
         "views/telegram_bot_dashboard.xml",
         "views/telegram_tool_views.xml",
