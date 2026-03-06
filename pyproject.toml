@@ -1,0 +1,18 @@
+[project]
+name = "softhill-odoo-telegram"
+version = "0.1.0"
+description = "Telegram Bot + Odoo integration framework"
+readme = "README.md"
+license = {text = "LGPL-3.0"}
+requires-python = ">=3.11"
+dependencies = [
+    "aiogram>=3.15,<4",
+    "aiohttp>=3.10,<4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "pytest",
+    "pytest-asyncio",
+]

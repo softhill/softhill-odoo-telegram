@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Tree view -->
+    <record id="telegram_chat_view_list" model="ir.ui.view">
+        <field name="name">telegram.chat.list</field>
+        <field name="model">telegram.chat</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="telegram_chat_id"/>
+                <field name="chat_type"/>
+                <field name="project_id"/>
+                <field name="permission_level"/>
+                <field name="active" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form view -->
+    <record id="telegram_chat_view_form" model="ir.ui.view">
+        <field name="name">telegram.chat.form</field>
+        <field name="model">telegram.chat</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="telegram_chat_id"/>
+                            <field name="chat_type"/>
+                        </group>
+                        <group>
+                            <field name="permission_level"/>
+                            <field name="project_id"
+                                   invisible="chat_type != 'projeto'"
+                                   required="chat_type == 'projeto'"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Search view -->
+    <record id="telegram_chat_view_search" model="ir.ui.view">
+        <field name="name">telegram.chat.search</field>
+        <field name="model">telegram.chat</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="telegram_chat_id"/>
+                <filter name="filter_dm" string="Direct Messages"
+                        domain="[('chat_type', '=', 'dm')]"/>
+                <filter name="filter_groups" string="Groups"
+                        domain="[('chat_type', '!=', 'dm')]"/>
+                <separator/>
+                <filter name="filter_admin" string="Admin Level"
+                        domain="[('permission_level', '=', 'admin')]"/>
+                <filter name="filter_dev" string="Dev Level"
+                        domain="[('permission_level', '=', 'dev')]"/>
+                <filter name="filter_freela" string="Freela Level"
+                        domain="[('permission_level', '=', 'freela')]"/>
+                <group expand="0" string="Group By">
+                    <filter name="groupby_type" string="Chat Type"
+                            context="{'group_by': 'chat_type'}"/>
+                    <filter name="groupby_permission" string="Permission Level"
+                            context="{'group_by': 'permission_level'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_telegram_chat" model="ir.actions.act_window">
+        <field name="name">Telegram Chats</field>
+        <field name="res_model">telegram.chat</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Register a Telegram chat
+            </p>
+            <p>
+                Map Telegram chats to permission levels to control what information
+                the bot can share in each conversation.
+            </p>
+        </field>
+    </record>
+
+    <!-- Menu -->
+    <menuitem id="menu_telegram_root"
+              name="Telegram"
+              web_icon="telegram_base,static/description/icon.png"
+              groups="telegram_base.group_telegram_admin"
+              sequence="100"/>
+    <menuitem id="menu_telegram_chats"
+              name="Chats"
+              parent="menu_telegram_root"
+              action="action_telegram_chat"
+              sequence="10"/>
+</odoo>
