@@ -15,10 +15,10 @@ class TelegramPendingAction(models.Model):
     chat_id = fields.Char(required=True, help="Telegram chat ID")
     action_type = fields.Selection(
         [
-            ("create", "Criar"),
-            ("update", "Atualizar"),
-            ("delete", "Excluir"),
-            ("execute", "Executar"),
+            ("create", "Create"),
+            ("update", "Update"),
+            ("delete", "Delete"),
+            ("execute", "Execute"),
         ],
         required=True,
     )
@@ -28,10 +28,10 @@ class TelegramPendingAction(models.Model):
     summary = fields.Char(compute="_compute_summary", store=True)
     status = fields.Selection(
         [
-            ("pending", "Pendente"),
-            ("confirmed", "Confirmado"),
-            ("cancelled", "Cancelado"),
-            ("expired", "Expirado"),
+            ("pending", "Pending"),
+            ("confirmed", "Confirmed"),
+            ("cancelled", "Cancelled"),
+            ("expired", "Expired"),
         ],
         default="pending",
         required=True,
@@ -41,7 +41,7 @@ class TelegramPendingAction(models.Model):
 
     @api.depends("action_type", "model_name", "record_id")
     def _compute_summary(self):
-        labels = {"create": "Criar", "update": "Atualizar", "delete": "Excluir", "execute": "Executar"}
+        labels = {"create": "Create", "update": "Update", "delete": "Delete", "execute": "Execute"}
         for rec in self:
             label = labels.get(rec.action_type, rec.action_type)
             target = f"{rec.model_name}"

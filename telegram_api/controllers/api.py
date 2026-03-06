@@ -44,7 +44,10 @@ class TelegramAPI(http.Controller):
     @http.route("/api/v1/chat", type="http", auth="none", methods=["POST"], csrf=False)
     @_authenticate
     def chat(self):
-        data = json.loads(request.httprequest.get_data(as_text=True))
+        try:
+            data = json.loads(request.httprequest.get_data(as_text=True))
+        except (json.JSONDecodeError, TypeError):
+            return _json_response({"error": "Invalid JSON body"}, 400)
         message = data.get("message", "")
         if not message:
             return _json_response({"error": "message is required"}, 400)
@@ -69,7 +72,10 @@ class TelegramAPI(http.Controller):
     @http.route("/api/v1/search", type="http", auth="none", methods=["POST"], csrf=False)
     @_authenticate
     def search(self):
-        data = json.loads(request.httprequest.get_data(as_text=True))
+        try:
+            data = json.loads(request.httprequest.get_data(as_text=True))
+        except (json.JSONDecodeError, TypeError):
+            return _json_response({"error": "Invalid JSON body"}, 400)
         model = data.get("model")
         domain = data.get("domain", [])
         fields_list = data.get("fields")

@@ -22,13 +22,13 @@ class TelegramMessage(models.Model):
     chat_id = fields.Many2one("telegram.chat")
     user_id = fields.Many2one("res.users", index=True)
     direction = fields.Selection(
-        [("in", "Recebida"), ("out", "Enviada")],
+        [("in", "Received"), ("out", "Sent")],
         required=True,
     )
     text = fields.Text()
     response = fields.Text()
     tool_calls = fields.Text(string="Tool Calls (JSON)")
-    processing_time = fields.Float(string="Tempo (s)")
+    processing_time = fields.Float(string="Time (s)")
     ai_model = fields.Char(index=True)
     tokens_in = fields.Integer()
     tokens_out = fields.Integer()
@@ -39,12 +39,12 @@ class TelegramMessage(models.Model):
         compute="_compute_analytics", store=True,
     )
     estimated_cost = fields.Float(
-        string="Custo (USD)",
+        string="Cost (USD)",
         compute="_compute_analytics", store=True,
         digits=(10, 6),
     )
     tool_count = fields.Integer(
-        string="Qtd Tools",
+        string="Tool Count",
         compute="_compute_analytics", store=True,
     )
     has_error = fields.Boolean(

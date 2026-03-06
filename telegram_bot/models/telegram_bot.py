@@ -112,17 +112,17 @@ class TelegramBot(models.AbstractModel):
             self._handle_start(chat_tg_id, user, from_user)
             return
 
-        # Handle /vincular
-        if text.startswith("/vincular"):
-            self._handle_vincular(chat_tg_id, telegram_id, text, from_user)
+        # Handle /link (and legacy /vincular)
+        if text.startswith("/link") or text.startswith("/vincular"):
+            self._handle_link(chat_tg_id, telegram_id, text, from_user)
             return
 
         # Require linked user for all other messages
         if not user:
             self.send_message(
                 chat_tg_id,
-                "Voce nao esta vinculado ao Odoo. "
-                "Use /vincular <seu_email> para se conectar.",
+                "You are not linked to Odoo. "
+                "Use /link <your_email> to connect.",
             )
             return
 
@@ -139,26 +139,33 @@ class TelegramBot(models.AbstractModel):
         self._process_ai_message(chat_tg_id, user, text, permission)
 
     @api.model
+    def _get_bot_name(self):
+        return self.env["ir.config_parameter"].sudo().get_param(
+            "telegram_base.bot_display_name", "AI Assistant"
+        )
+
+    @api.model
     def _handle_start(self, chat_id, user, from_user):
         name = from_user.get("first_name", "")
+        bot_name = self._get_bot_name()
         if user:
             self.send_message(
                 chat_id,
-                f"Ola, {user.name}! Sou o assistente da Softhill.\n"
-                "Pode me perguntar qualquer coisa sobre o Odoo.",
+                f"Hello, {user.name}! I'm {bot_name}.\n"
+                "You can ask me anything about Odoo.",
             )
         else:
             self.send_message(
                 chat_id,
-                f"Ola, {name}! Sou o assistente da Softhill.\n\n"
-                "Use /vincular <seu_email> para conectar sua conta Odoo.",
+                f"Hello, {name}! I'm {bot_name}.\n\n"
+                "Use /link <your_email> to connect your Odoo account.",
             )
 
     @api.model
-    def _handle_vincular(self, chat_id, telegram_id, text, from_user):
+    def _handle_link(self, chat_id, telegram_id, text, from_user):
         parts = text.split(maxsplit=1)
         if len(parts) < 2:
-            self.send_message(chat_id, "Uso: /vincular <seu_email_odoo>")
+            self.send_message(chat_id, "Usage: /link <your_odoo_email>")
             return
 
         email = parts[1].strip()
@@ -169,7 +176,7 @@ class TelegramBot(models.AbstractModel):
         )
         if existing:
             self.send_message(
-                chat_id, f"Voce ja esta vinculado como {existing.name}."
+                chat_id, f"You are already linked as {existing.name}."
             )
             return
 
@@ -179,22 +186,22 @@ class TelegramBot(models.AbstractModel):
         )
         if not user:
             self.send_message(
-                chat_id, "Email nao encontrado no Odoo. Verifique e tente novamente."
+                chat_id, "Email not found in Odoo. Please check and try again."
             )
             return
 
         if user.telegram_id:
             self.send_message(
                 chat_id,
-                "Este usuario Odoo ja esta vinculado a outra conta Telegram.",
+                "This Odoo user is already linked to another Telegram account.",
             )
             return
 
         user.sudo().write({"telegram_id": telegram_id})
         self.send_message(
             chat_id,
-            f"Vinculado com sucesso! Bem-vindo, {user.name}.\n"
-            "Agora voce pode usar o bot normalmente.",
+            f"Successfully linked! Welcome, {user.name}.\n"
+            "You can now use the bot normally.",
         )
         _logger.info(
             "Linked Telegram %s to Odoo user %s (%s)",
@@ -269,22 +276,22 @@ class TelegramBot(models.AbstractModel):
 
         pending = self.env["telegram.pending_action"].sudo().browse(pending_id)
         if not pending.exists() or pending.status != "pending":
-            self.send_message(chat_tg_id, "Acao ja processada ou expirada.")
+            self.send_message(chat_tg_id, "Action already processed or expired.")
             return
 
         if action == "confirm":
             result = pending.execute_action()
             if "error" in result:
-                self.send_message(chat_tg_id, f"Erro: {result['error']}")
+                self.send_message(chat_tg_id, f"Error: {result['error']}")
             else:
                 self.send_message(
                     chat_tg_id,
-                    f"Acao confirmada e executada: {pending.summary}\n"
-                    f"Resultado: {json.dumps(result, ensure_ascii=False, default=str)}",
+                    f"Action confirmed: {pending.summary}\n"
+                    f"Result: {json.dumps(result, ensure_ascii=False, default=str)}",
                 )
         else:
             pending.cancel_action()
-            self.send_message(chat_tg_id, "Acao cancelada.")
+            self.send_message(chat_tg_id, "Action cancelled.")
 
     @api.model
     def _process_ai_message(self, chat_id, user, text, permission):
@@ -293,15 +300,17 @@ class TelegramBot(models.AbstractModel):
         start = time.time()
 
         ai = self.env["telegram.ai.chat"]
+        error_msg = ""
         try:
             response, tool_calls, usage = ai.chat(
                 text, user, permission, chat_id=chat_id
             )
         except Exception as e:
             _logger.exception("AI chat error")
-            response = "Desculpe, ocorreu um erro ao processar sua mensagem."
+            response = "Sorry, an error occurred while processing your message."
             tool_calls = []
             usage = {}
+            error_msg = str(e)
 
         elapsed = time.time() - start
 
@@ -316,6 +325,7 @@ class TelegramBot(models.AbstractModel):
             "ai_model": usage.get("model", ""),
             "tokens_in": usage.get("prompt_tokens", 0),
             "tokens_out": usage.get("completion_tokens", 0),
+            "error": error_msg or False,
         })
 
         # Check if response contains confirmation requests
@@ -337,8 +347,8 @@ class TelegramBot(models.AbstractModel):
                 response,
                 reply_markup=json.dumps({
                     "inline_keyboard": [[
-                        {"text": "Confirmar", "callback_data": f"confirm_{pending.id}"},
-                        {"text": "Cancelar", "callback_data": f"cancel_{pending.id}"},
+                        {"text": "Confirm", "callback_data": f"confirm_{pending.id}"},
+                        {"text": "Cancel", "callback_data": f"cancel_{pending.id}"},
                     ]]
                 }),
             )

@@ -144,6 +144,29 @@
         </field>
     </record>
 
+    <record id="view_telegram_pending_action_search" model="ir.ui.view">
+        <field name="name">telegram.pending_action.search</field>
+        <field name="model">telegram.pending_action</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="user_id"/>
+                <field name="model_name"/>
+                <filter name="pending" string="Pending" domain="[('status','=','pending')]"/>
+                <filter name="confirmed" string="Confirmed" domain="[('status','=','confirmed')]"/>
+                <filter name="cancelled" string="Cancelled" domain="[('status','=','cancelled')]"/>
+                <filter name="expired" string="Expired" domain="[('status','=','expired')]"/>
+                <separator/>
+                <filter name="today" string="Today"
+                        domain="[('create_date','&gt;=', (context_today()).strftime('%%Y-%%m-%%d'))]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_user" string="User" context="{'group_by': 'user_id'}"/>
+                    <filter name="group_status" string="Status" context="{'group_by': 'status'}"/>
+                    <filter name="group_type" string="Action Type" context="{'group_by': 'action_type'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
     <record id="action_telegram_pending_action" model="ir.actions.act_window">
         <field name="name">Pending Actions</field>
         <field name="res_model">telegram.pending_action</field>

@@ -8,6 +8,9 @@
             <xpath expr="//app[@name='general_settings']" position="after">
                 <app string="Telegram" name="telegram_base">
                     <block title="Telegram Bot">
+                        <setting string="Bot Name" help="Display name used in bot greeting messages">
+                            <field name="telegram_bot_display_name" placeholder="AI Assistant"/>
+                        </setting>
                         <setting string="Bot Token" help="Token from @BotFather">
                             <field name="telegram_bot_token" password="True"/>
                         </setting>

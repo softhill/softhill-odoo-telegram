@@ -410,7 +410,7 @@ class TelegramAIChat(models.AbstractModel):
     @api.model
     def _get_github_org(self):
         return self.env["ir.config_parameter"].sudo().get_param(
-            "telegram_base.github_org", "softhill"
+            "telegram_base.github_org", ""
         )
 
     @api.model

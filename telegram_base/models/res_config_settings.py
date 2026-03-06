@@ -4,6 +4,11 @@ from odoo import fields, models
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
+    telegram_bot_display_name = fields.Char(
+        string="Bot Display Name",
+        config_parameter="telegram_base.bot_display_name",
+        default="AI Assistant",
+    )
     telegram_bot_token = fields.Char(
         string="Bot Token",
         config_parameter="telegram_base.bot_token",
@@ -43,5 +48,5 @@ class ResConfigSettings(models.TransientModel):
     telegram_github_org = fields.Char(
         string="GitHub Organization",
         config_parameter="telegram_base.github_org",
-        default="softhill",
+        default="",
     )

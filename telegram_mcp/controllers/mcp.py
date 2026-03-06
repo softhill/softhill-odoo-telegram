@@ -28,11 +28,26 @@ def _authenticate_mcp():
     return user
 
 
-def _get_mcp_tools():
-    """Get tool list from telegram.tool model in MCP format."""
+def _get_mcp_tools(user):
+    """Get tool list filtered by user permission in MCP format."""
+    # Resolve permission level
+    if user.has_group("telegram_base.group_telegram_admin"):
+        permission = "admin"
+    elif user.has_group("telegram_base.group_telegram_dev"):
+        permission = "dev"
+    else:
+        permission = "freela"
+
+    levels = {"freela": 0, "dev": 1, "admin": 2}
+    user_level = levels.get(permission, 0)
+
     tools = request.env["telegram.tool"].sudo().search([("active", "=", True)])
     result = []
     for tool in tools:
+        # Filter by permission level
+        tool_level = levels.get(tool.permission_level, 0)
+        if tool_level > user_level:
+            continue
         try:
             schema = json.loads(tool.input_schema)
         except (json.JSONDecodeError, TypeError):
@@ -109,13 +124,13 @@ class MCPController(http.Controller):
                     "tools": {"listChanged": False},
                 },
                 "serverInfo": {
-                    "name": "softhill-odoo-mcp",
+                    "name": "odoo-telegram-mcp",
                     "version": "2.0.0",
                 },
             }
 
         elif method == "tools/list":
-            return {"tools": _get_mcp_tools()}
+            return {"tools": _get_mcp_tools(user)}
 
         elif method == "tools/call":
             tool_name = params.get("name")
